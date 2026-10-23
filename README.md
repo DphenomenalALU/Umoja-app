@@ -6,14 +6,12 @@
 
 Community meetings and volunteer opportunities are often announced through word of mouth and scattered messaging groups. Residents can miss dates, organizers cannot easily see who plans to attend, and volunteer hours are hard to track. Umoja brings event details, sign-ups, attendance, and volunteer history into one place for community groups.
 
-The team is still confirming its pilot community and gathering local feedback. The project is scoped for community leaders, youth groups, NGOs, and residents who already coordinate activities together.
-
 ## Team Members
 
-- Ibrahim Salami - Team lead, planning, product scope, integration, and submission - Student ID: TBD
-- Evander Manna - Backend, PostgreSQL, and repository hygiene - Student ID: TBD
-- Veronica Wanjuu - Frontend and event API integration - Student ID: TBD
-- Alice Uwase - Quality assurance, Jest, and attendance/profile follow-up - Student ID: TBD
+- Ibrahim Salami - Team lead, planning, product scope, integration, and submission - Student ID: i.salami@alustudent.com
+- Evander Manna - Backend, PostgreSQL, and repository hygiene - Student ID: e.manna@alustudent.com
+- Veronica Wanjuu - Frontend and event API integration - Student ID: v.wanjuu@alustudent.com
+- Alice Uwase - Quality assurance, Jest, and attendance/profile follow-up - Student ID: a.uwase3@alustudent.com
 
 ## Project Overview
 
@@ -152,7 +150,6 @@ lib/                           Frontend event API client
 
 - [GitHub repository](https://github.com/DphenomenalALU/Umoja-app)
 - [Umoja F1 project board](https://github.com/users/DphenomenalALU/projects/2)
-- [F1 team plan](docs/F1_TEAM_PLAN.md)
 - [Course README template](https://github.com/ALU-BSE/devops-2025s-templates/blob/main/formative-1-readme-template.md)
 - [License](LICENSE)
 
