@@ -47,13 +47,13 @@ describe("parseNewEvent", () => {
 
     it.each([0, 2, 121])("rejects a %i-character title", (length) => {
       expect(() => parseNewEvent({ ...base, title: text(length) })).toThrow(
-        "Event names must be between 3 and 120 characters.",
+        "Names of events must be between 3 and 120 characters.",
       );
     });
 
     it("does not count surrounding spaces towards the minimum length", () => {
       expect(() => parseNewEvent({ ...base, title: "   ab   " })).toThrow(
-        "Event names must be between 3 and 120 characters.",
+        "Names of events must be between 3 and 120 characters.",
       );
     });
   });
