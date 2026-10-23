@@ -16,7 +16,8 @@ import DashboardSidebar from "@/components/dashboard/dashboard-sidebar";
 import { initialNotifications } from "@/components/dashboard/notification-data";
 import { initialsColor, KindPill } from "@/components/dashboard/event-visuals";
 import type { Attendee, Kind, UmojaEvent, View } from "@/components/dashboard/types";
-import { createEvent, createSignup, getEvents, toDashboardEvent } from "@/lib/events-api";
+import { createEvent, createSignup, getEvents, isMockDataMode, toDashboardEvent } from "@/lib/events-api";
+import type { CreateEventInput } from "@/lib/events-api";
 
 type SortOrder = "Soonest first" | "Latest first";
 type TypeFilter = "All types" | Kind;
@@ -140,14 +141,27 @@ function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | n
       try {
         const startsAt = new Date(`${date}T${time}:00`);
         if (!date || Number.isNaN(startsAt.getTime())) throw new Error("Choose a valid event date and time.");
-        const created = await createEvent({
+        const input: CreateEventInput = {
           title: title.trim(),
           kind: kind === "Volunteer day" ? "volunteer" : "meeting",
           startsAt: startsAt.toISOString(),
           venue: venue.trim(),
           agenda: agenda.trim(),
           capacity: kind === "Volunteer day" ? Number(capacity) : null,
-        });
+        };
+        const created = isMockDataMode
+          ? {
+              id: `mock-${crypto.randomUUID()}`,
+              title: input.title,
+              kind: input.kind,
+              starts_at: input.startsAt,
+              venue: input.venue,
+              agenda: input.agenda,
+              capacity: input.capacity,
+              created_at: new Date().toISOString(),
+              signup_count: 0,
+            }
+          : await createEvent(input);
         await onSave(toDashboardEvent(created));
         onClose();
       } catch (error) {
@@ -171,19 +185,21 @@ function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | n
       setFormError(error instanceof Error ? error.message : "Could not join this event.");
     }
   };
-  return <dialog ref={dialogRef} className="event-dialog event-detail-dialog" aria-labelledby="event-detail-title" {...dialogEvents}><div className="detail-cover"><span className="detail-illustration"><HandHeart size={30} /></span><button autoFocus type="button" className="dialog-close on-cover" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><div className="detail-dialog-content"><KindPill kind={event.kind} /><h2 id="event-detail-title">{event.title}</h2><div className="detail-meta"><span><CalendarDays size={15} />{event.date} · {event.time}</span><span><MapPin size={15} />{event.venue}</span></div><div className="detail-agenda"><span className="eyebrow green-eyebrow">THE PLAN</span><p>{event.agenda || "The organizer will share more details soon."}</p></div><div className="detail-signups"><div><b>Who’s coming</b><span>{event.capacity === null ? `${signupCount} signed up` : `${signupCount} of ${event.capacity} spaces`}</span></div>{event.attendees.length ? event.attendees.map((person, index) => <div className="detail-person" key={person.name}><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><span><b>{person.name}</b><small>{person.checkedIn ? `Attended · ${formatHours(person.hours)} hours recorded` : "Signed up"}</small></span>{person.checkedIn && <Check size={14} className="detail-check" />}</div>) : <p className="no-signups">No attendee details are loaded for this event yet.</p>}</div><form onSubmit={submitRsvp}><label>Your name<input required minLength={2} maxLength={100} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" /></label><label>Your email<input required type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>{formError && <p role="alert">{formError}</p>}{rsvpMessage && <p role="status">{rsvpMessage}</p>}<div className="detail-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="submit" variant="primary" disabled={eventIsFull}>{eventIsFull ? "Event full" : "I’m coming"}<ArrowRight size={14} /></Button></div></form><p className="preview-only-note">Sample workspace · API-connected events are saved to PostgreSQL.</p></div></dialog>;
+  return <dialog ref={dialogRef} className="event-dialog event-detail-dialog" aria-labelledby="event-detail-title" {...dialogEvents}><div className="detail-cover"><span className="detail-illustration"><HandHeart size={30} /></span><button autoFocus type="button" className="dialog-close on-cover" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><div className="detail-dialog-content"><KindPill kind={event.kind} /><h2 id="event-detail-title">{event.title}</h2><div className="detail-meta"><span><CalendarDays size={15} />{event.date} · {event.time}</span><span><MapPin size={15} />{event.venue}</span></div><div className="detail-agenda"><span className="eyebrow green-eyebrow">THE PLAN</span><p>{event.agenda || "The organizer will share more details soon."}</p></div><div className="detail-signups"><div><b>Who’s coming</b><span>{event.capacity === null ? `${signupCount} signed up` : `${signupCount} of ${event.capacity} spaces`}</span></div>{event.attendees.length ? event.attendees.map((person, index) => <div className="detail-person" key={person.name}><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><span><b>{person.name}</b><small>{person.checkedIn ? `Attended · ${formatHours(person.hours)} hours recorded` : "Signed up"}</small></span>{person.checkedIn && <Check size={14} className="detail-check" />}</div>) : <p className="no-signups">No attendee details are loaded for this event yet.</p>}</div><form onSubmit={submitRsvp}><label>Your name<input required minLength={2} maxLength={100} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" /></label><label>Your email<input required type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>{formError && <p role="alert">{formError}</p>}{rsvpMessage && <p role="status">{rsvpMessage}</p>}<div className="detail-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="submit" variant="primary" disabled={eventIsFull}>{eventIsFull ? "Event full" : "I’m coming"}<ArrowRight size={14} /></Button></div></form><p className="preview-only-note">{isMockDataMode ? "Mock changes stay in this browser session and reset on reload." : "API-connected events and sign-ups are saved to PostgreSQL."}</p></div></dialog>;
 }
 
 export default function DashboardWorkspace() {
   const [events, setEvents] = useState(initialEvents);
-  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(!isMockDataMode);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(initialNotifications);
   const [active, setActive] = useState<View>("Events");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [dialog, setDialog] = useState<UmojaEvent | null | "create">(null);
+  const mockSignups = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (isMockDataMode) return;
     let cancelled = false;
     async function loadEvents() {
       try {
@@ -209,7 +225,12 @@ export default function DashboardWorkspace() {
     updateAttendee(eventId, attendeeName, (person) => ({ ...person, checkedIn: !person.checkedIn, hours: person.checkedIn ? 0 : hours }));
   };
   const toggleRsvp = async (eventId: string, fullName: string, email: string) => {
-    const signup = await createSignup(eventId, { fullName, email });
+    const mockKey = `${eventId}:${email.trim().toLowerCase()}`;
+    const alreadyJoined = isMockDataMode && mockSignups.current.has(mockKey);
+    if (isMockDataMode && !alreadyJoined) mockSignups.current.add(mockKey);
+    const signup = isMockDataMode
+      ? { person: { full_name: fullName }, alreadyJoined }
+      : await createSignup(eventId, { fullName, email });
     setEvents((items) => items.map((event) => {
       if (event.id !== eventId) return event;
       const person = {
@@ -236,5 +257,5 @@ export default function DashboardWorkspace() {
   };
   const selectedEvent = typeof dialog === "object" && dialog !== null ? events.find((event) => event.id === dialog.id) ?? null : dialog;
   const activeEventId = typeof dialog === "object" && dialog !== null ? dialog.id : null;
-  return <main className="crm-app-shell"><DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="crm-main"><DashboardHeader active={active} setActive={setActive} onMenu={() => setSidebarOpen(true)} searchOpen={searchOpen} setSearchOpen={setSearchOpen} events={events} notifications={notifications} onReadNotification={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead} onSelectNotificationEvent={selectNotificationEvent} />{eventsLoading && <p role="status" className="px-4 py-3">Loading events...</p>}{eventsError && <p role="alert" className="px-4 py-3">Live events unavailable: {eventsError} Showing labeled sample data.</p>}{active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}{active === "Attendance" && <AttendanceView events={events} onToggle={toggleCheckIn} />}{active === "Volunteers" && <VolunteersView events={events} />}<EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} /></div></main>;
+  return <main className="crm-app-shell"><DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="crm-main"><DashboardHeader active={active} setActive={setActive} onMenu={() => setSidebarOpen(true)} searchOpen={searchOpen} setSearchOpen={setSearchOpen} events={events} notifications={notifications} isMockDataMode={isMockDataMode} onReadNotification={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead} onSelectNotificationEvent={selectNotificationEvent} />{eventsLoading && <p role="status" className="px-4 py-3">Loading events...</p>}{eventsError && <p role="alert" className="px-4 py-3">Live events unavailable: {eventsError} Showing labeled sample data.</p>}{active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}{active === "Attendance" && <AttendanceView events={events} onToggle={toggleCheckIn} />}{active === "Volunteers" && <VolunteersView events={events} />}<EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} /></div></main>;
 }

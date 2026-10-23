@@ -1,5 +1,9 @@
 import type { UmojaEvent } from "@/components/dashboard/types";
 
+export const isMockDataMode =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_UMOJA_DATA_MODE === "mock";
+
 export type ApiEvent = {
   id: string;
   title: string;
@@ -86,14 +90,12 @@ export async function createSignup(
 function formatEventDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
-    timeZone: "UTC",
   }).format(new Date(value));
 }
 
 function formatEventTime(value: string) {
   return new Intl.DateTimeFormat("en", {
     timeStyle: "short",
-    timeZone: "UTC",
   }).format(new Date(value));
 }
 
