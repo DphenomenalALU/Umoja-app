@@ -16,6 +16,8 @@ import DashboardSidebar from "@/components/dashboard/dashboard-sidebar";
 import { initialNotifications } from "@/components/dashboard/notification-data";
 import { initialsColor, KindPill } from "@/components/dashboard/event-visuals";
 import type { Attendee, Kind, UmojaEvent, View } from "@/components/dashboard/types";
+import { createEvent, createSignup, getEvents, isMockDataMode, toDashboardEvent } from "@/lib/events-api";
+import type { CreateEventInput } from "@/lib/events-api";
 
 type SortOrder = "Soonest first" | "Latest first";
 type TypeFilter = "All types" | Kind;
@@ -55,7 +57,8 @@ function EventsView({ events, openDetails, openCreate, searchOpen, activeEventId
   const today = useSyncExternalStore(noopSubscribe, getLocalDay, getServerDay);
   const visible = useMemo(() => events.filter((event) => {
     const isUpcoming = today === null || new Date(event.date).getTime() >= today;
-    const hasSpaces = event.capacity === null || event.attendees.length < event.capacity;
+    const signupCount = event.signupCount ?? event.attendees.length;
+    const hasSpaces = event.capacity === null || signupCount < event.capacity;
     const matchesDate = dateFilter === "All dates" || (dateFilter === "Upcoming" ? isUpcoming : !isUpcoming);
     const matchesSignUps = signUpFilter === "Any sign-up status" || (signUpFilter === "Has spaces" ? hasSpaces : !hasSpaces);
     const matchesType = typeFilter === "All types" || typeFilter === event.kind;
@@ -105,14 +108,7 @@ function VolunteersView({ events }: { events: UmojaEvent[] }) {
     <footer className="crm-table-footer"><span><b>{people.length}</b> volunteer profiles</span><span><Clock3 size={13} /> <b>{formatHours(people.reduce((sum, person) => sum + person.hours, 0))}</b> total hours recorded</span></footer></section>;
 }
 
-function parsedDateTimeLabel(value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | null | "create"; onClose: () => void; onSave: (event: UmojaEvent) => void; onRsvp: (eventId: string) => void }) {
+function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | null | "create"; onClose: () => void; onSave: (event: UmojaEvent) => Promise<void>; onRsvp: (eventId: string, fullName: string, email: string) => Promise<{ alreadyJoined: boolean }> }) {
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<Kind>("Volunteer day");
   const [date, setDate] = useState("");
@@ -120,6 +116,11 @@ function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | n
   const [venue, setVenue] = useState("");
   const [capacity, setCapacity] = useState("20");
   const [agenda, setAgenda] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [rsvpMessage, setRsvpMessage] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const isOpen = event !== null;
   useEffect(() => {
@@ -133,40 +134,121 @@ function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | n
     onClick: (e: React.MouseEvent<HTMLDialogElement>) => { if (e.target === e.currentTarget) onClose(); },
   };
   if (event === "create") {
-    const submit = (e: FormEvent<HTMLFormElement>) => {
+    const submit = async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const parsedDate = new Date(`${date}T12:00:00`);
-      onSave({ id: `event-${Date.now()}`, title: title.trim(), kind, date: parsedDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }), time: parsedDateTimeLabel(time), venue: venue.trim(), agenda: agenda.trim(), capacity: kind === "Volunteer day" ? Math.max(1, Number(capacity) || 20) : null, attendees: [] });
-      onClose();
+      setSaving(true);
+      setFormError(null);
+      try {
+        const startsAt = new Date(`${date}T${time}:00`);
+        if (!date || Number.isNaN(startsAt.getTime())) throw new Error("Choose a valid event date and time.");
+        const input: CreateEventInput = {
+          title: title.trim(),
+          kind: kind === "Volunteer day" ? "volunteer" : "meeting",
+          startsAt: startsAt.toISOString(),
+          venue: venue.trim(),
+          agenda: agenda.trim(),
+          capacity: kind === "Volunteer day" ? Number(capacity) : null,
+        };
+        const created = isMockDataMode
+          ? {
+              id: `mock-${crypto.randomUUID()}`,
+              title: input.title,
+              kind: input.kind,
+              starts_at: input.startsAt,
+              venue: input.venue,
+              agenda: input.agenda,
+              capacity: input.capacity,
+              created_at: new Date().toISOString(),
+              signup_count: 0,
+            }
+          : await createEvent(input);
+        await onSave(toDashboardEvent(created));
+        onClose();
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : "Could not create the event.");
+      } finally {
+        setSaving(false);
+      }
     };
-    return <dialog ref={dialogRef} className="event-dialog" aria-labelledby="create-title" {...dialogEvents}><div className="dialog-heading"><div><span className="eyebrow green-eyebrow">MAKE A PLAN</span><h2 id="create-title">Create an event</h2><p>Share the details your community needs to show up.</p></div><button type="button" className="dialog-close" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><form onSubmit={submit}><label>Event name<input required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Community garden day" /></label><label>Type<select value={kind} onChange={(e) => setKind(e.target.value as Kind)}><option>Volunteer day</option><option>Community meeting</option></select></label><div className="form-two"><label>Date<input type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></label><label>Start time<input type="time" required value={time} onChange={(e) => setTime(e.target.value)} /></label></div><div className="form-two"><label>Venue<input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Where should people meet?" /></label>{kind === "Volunteer day" && <label>Volunteer spaces<input type="number" min="1" max="500" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></label>}</div><label>What’s the plan?<textarea rows={3} value={agenda} onChange={(e) => setAgenda(e.target.value)} placeholder="Share a short agenda or what volunteers will do." /></label><div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary"><Plus size={15} />Create event</Button></div></form></dialog>;
+    return <dialog ref={dialogRef} className="event-dialog" aria-labelledby="create-title" {...dialogEvents}><div className="dialog-heading"><div><span className="eyebrow green-eyebrow">MAKE A PLAN</span><h2 id="create-title">Create an event</h2><p>Share the details your community needs to show up.</p></div><button type="button" className="dialog-close" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><form onSubmit={submit}><label>Event name<input required minLength={3} maxLength={120} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Community garden day" /></label><label>Type<select value={kind} onChange={(e) => setKind(e.target.value as Kind)}><option>Volunteer day</option><option>Community meeting</option></select></label><div className="form-two"><label>Date<input type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></label><label>Start time<input type="time" required value={time} onChange={(e) => setTime(e.target.value)} /></label></div><div className="form-two"><label>Venue<input required minLength={2} maxLength={180} value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Where should people meet?" /></label>{kind === "Volunteer day" && <label>Volunteer spaces<input type="number" min="1" max="5000" required value={capacity} onChange={(e) => setCapacity(e.target.value)} /></label>}</div><label>What’s the plan?<textarea rows={3} maxLength={4000} value={agenda} onChange={(e) => setAgenda(e.target.value)} placeholder="Share a short agenda or what volunteers will do." /></label>{formError && <p role="alert">{formError}</p>}<div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary" disabled={saving}>{saving ? "Creating..." : <><Plus size={15} />Create event</>}</Button></div></form></dialog>;
   }
   const current = event.attendees.find((person) => person.name === "Joyce Moyo");
-  const eventIsFull = event.capacity !== null && event.attendees.length >= event.capacity && !current;
-  return <dialog ref={dialogRef} className="event-dialog event-detail-dialog" aria-labelledby="event-detail-title" {...dialogEvents}><div className="detail-cover"><span className="detail-illustration"><HandHeart size={30} /></span><button autoFocus type="button" className="dialog-close on-cover" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><div className="detail-dialog-content"><KindPill kind={event.kind} /><h2 id="event-detail-title">{event.title}</h2><div className="detail-meta"><span><CalendarDays size={15} />{event.date} · {event.time}</span><span><MapPin size={15} />{event.venue}</span></div><div className="detail-agenda"><span className="eyebrow green-eyebrow">THE PLAN</span><p>{event.agenda || "The organizer will share more details soon."}</p></div><div className="detail-signups"><div><b>Who’s coming</b><span>{event.capacity === null ? `${event.attendees.length} signed up` : `${event.attendees.length} of ${event.capacity} spaces`}</span></div>{event.attendees.length ? event.attendees.map((person, index) => <div className="detail-person" key={person.name}><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><span><b>{person.name}</b><small>{person.checkedIn ? `Attended · ${formatHours(person.hours)} hours recorded` : "Signed up"}</small></span>{person.checkedIn && <Check size={14} className="detail-check" />}</div>) : <p className="no-signups">No one has joined yet. You could be the first.</p>}</div><div className="detail-actions"><Button variant="secondary" onClick={onClose}>Close</Button><Button variant="primary" disabled={eventIsFull} onClick={() => onRsvp(event.id)}>{current ? "Leave event" : eventIsFull ? "Event full" : "I’m coming"}<ArrowRight size={14} /></Button></div><p className="preview-only-note">Sample workspace · Changes in this preview are temporary.</p></div></dialog>;
+  const signupCount = event.signupCount ?? event.attendees.length;
+  const eventIsFull = event.capacity !== null && signupCount >= event.capacity && !current;
+  const submitRsvp = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setFormError(null);
+    try {
+      const result = await onRsvp(event.id, fullName, email);
+      setRsvpMessage(result.alreadyJoined ? "You are already signed up for this event." : "You are signed up. We look forward to seeing you there.");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not join this event.");
+    }
+  };
+  return <dialog ref={dialogRef} className="event-dialog event-detail-dialog" aria-labelledby="event-detail-title" {...dialogEvents}><div className="detail-cover"><span className="detail-illustration"><HandHeart size={30} /></span><button autoFocus type="button" className="dialog-close on-cover" aria-label="Close dialog" onClick={onClose}><X size={18} /></button></div><div className="detail-dialog-content"><KindPill kind={event.kind} /><h2 id="event-detail-title">{event.title}</h2><div className="detail-meta"><span><CalendarDays size={15} />{event.date} · {event.time}</span><span><MapPin size={15} />{event.venue}</span></div><div className="detail-agenda"><span className="eyebrow green-eyebrow">THE PLAN</span><p>{event.agenda || "The organizer will share more details soon."}</p></div><div className="detail-signups"><div><b>Who’s coming</b><span>{event.capacity === null ? `${signupCount} signed up` : `${signupCount} of ${event.capacity} spaces`}</span></div>{event.attendees.length ? event.attendees.map((person, index) => <div className="detail-person" key={person.name}><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><span><b>{person.name}</b><small>{person.checkedIn ? `Attended · ${formatHours(person.hours)} hours recorded` : "Signed up"}</small></span>{person.checkedIn && <Check size={14} className="detail-check" />}</div>) : <p className="no-signups">No attendee details are loaded for this event yet.</p>}</div><form onSubmit={submitRsvp}><label>Your name<input required minLength={2} maxLength={100} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" /></label><label>Your email<input required type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>{formError && <p role="alert">{formError}</p>}{rsvpMessage && <p role="status">{rsvpMessage}</p>}<div className="detail-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="submit" variant="primary" disabled={eventIsFull}>{eventIsFull ? "Event full" : "I’m coming"}<ArrowRight size={14} /></Button></div></form><p className="preview-only-note">{isMockDataMode ? "Mock changes stay in this browser session and reset on reload." : "API-connected events and sign-ups are saved to PostgreSQL."}</p></div></dialog>;
 }
 
 export default function DashboardWorkspace() {
   const [events, setEvents] = useState(initialEvents);
+  const [eventsLoading, setEventsLoading] = useState(!isMockDataMode);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(initialNotifications);
   const [active, setActive] = useState<View>("Events");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [dialog, setDialog] = useState<UmojaEvent | null | "create">(null);
+  const mockSignups = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (isMockDataMode) return;
+    let cancelled = false;
+    async function loadEvents() {
+      try {
+        setEventsLoading(true);
+        setEventsError(null);
+        const apiEvents = await getEvents();
+        if (!cancelled) setEvents(apiEvents.map(toDashboardEvent));
+      } catch (error) {
+        if (!cancelled) {
+          setEventsError(error instanceof Error ? error.message : "Could not load events.");
+        }
+      } finally {
+        if (!cancelled) setEventsLoading(false);
+      }
+    }
+    void loadEvents();
+    return () => { cancelled = true; };
+  }, []);
   const updateAttendee = (eventId: string, attendeeName: string, updater: (person: Attendee) => Attendee) => setEvents((items) => items.map((event) => event.id !== eventId ? event : { ...event, attendees: event.attendees.map((person) => person.name === attendeeName ? updater(person) : person) }));
   const toggleCheckIn = (eventId: string, attendeeName: string, enteredHours: number) => {
     const event = events.find((item) => item.id === eventId);
     const hours = event?.kind === "Volunteer day" ? Math.min(24, Math.max(0.25, enteredHours || 2)) : 0;
     updateAttendee(eventId, attendeeName, (person) => ({ ...person, checkedIn: !person.checkedIn, hours: person.checkedIn ? 0 : hours }));
   };
-  const toggleRsvp = (eventId: string) => setEvents((items) => items.map((event) => {
-    if (event.id !== eventId) return event;
-    const alreadyJoined = event.attendees.some((person) => person.name === "Joyce Moyo");
-    if (alreadyJoined) return { ...event, attendees: event.attendees.filter((person) => person.name !== "Joyce Moyo") };
-    if (event.capacity !== null && event.attendees.length >= event.capacity) return event;
-    return { ...event, attendees: [...event.attendees, { name: "Joyce Moyo", initials: "JM", checkedIn: false, hours: 0 }] };
-  }));
-  const saveEvent = (event: UmojaEvent) => setEvents((items) => [event, ...items]);
+  const toggleRsvp = async (eventId: string, fullName: string, email: string) => {
+    const mockKey = `${eventId}:${email.trim().toLowerCase()}`;
+    const alreadyJoined = isMockDataMode && mockSignups.current.has(mockKey);
+    if (isMockDataMode && !alreadyJoined) mockSignups.current.add(mockKey);
+    const signup = isMockDataMode
+      ? { person: { full_name: fullName }, alreadyJoined }
+      : await createSignup(eventId, { fullName, email });
+    setEvents((items) => items.map((event) => {
+      if (event.id !== eventId) return event;
+      const person = {
+        name: signup.person.full_name,
+        initials: signup.person.full_name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+        checkedIn: false,
+        hours: 0,
+      };
+      const hasPerson = event.attendees.some((attendee) => attendee.name === person.name);
+      return {
+        ...event,
+        signupCount: (event.signupCount ?? event.attendees.length) + (signup.alreadyJoined || hasPerson ? 0 : 1),
+        attendees: signup.alreadyJoined || hasPerson ? event.attendees : [...event.attendees, person],
+      };
+    }));
+    return { alreadyJoined: signup.alreadyJoined };
+  };
+  const saveEvent = async (event: UmojaEvent) => setEvents((items) => [event, ...items]);
   const markNotificationRead = (notificationId: string) => setNotifications((items) => items.map((item) => item.id === notificationId ? { ...item, unread: false } : item));
   const markAllNotificationsRead = () => setNotifications((items) => items.map((item) => ({ ...item, unread: false })));
   const selectNotificationEvent = (eventId: string) => {
@@ -175,5 +257,5 @@ export default function DashboardWorkspace() {
   };
   const selectedEvent = typeof dialog === "object" && dialog !== null ? events.find((event) => event.id === dialog.id) ?? null : dialog;
   const activeEventId = typeof dialog === "object" && dialog !== null ? dialog.id : null;
-  return <main className="crm-app-shell"><DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="crm-main"><DashboardHeader active={active} setActive={setActive} onMenu={() => setSidebarOpen(true)} searchOpen={searchOpen} setSearchOpen={setSearchOpen} events={events} notifications={notifications} onReadNotification={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead} onSelectNotificationEvent={selectNotificationEvent} />{active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}{active === "Attendance" && <AttendanceView events={events} onToggle={toggleCheckIn} />}{active === "Volunteers" && <VolunteersView events={events} />}<EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} /></div></main>;
+  return <main className="crm-app-shell"><DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="crm-main"><DashboardHeader active={active} setActive={setActive} onMenu={() => setSidebarOpen(true)} searchOpen={searchOpen} setSearchOpen={setSearchOpen} events={events} notifications={notifications} isMockDataMode={isMockDataMode} onReadNotification={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead} onSelectNotificationEvent={selectNotificationEvent} />{eventsLoading && <p role="status" className="px-4 py-3">Loading events...</p>}{eventsError && <p role="alert" className="px-4 py-3">Live events unavailable: {eventsError} Showing labeled sample data.</p>}{active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}{active === "Attendance" && <AttendanceView events={events} onToggle={toggleCheckIn} />}{active === "Volunteers" && <VolunteersView events={events} />}<EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} /></div></main>;
 }

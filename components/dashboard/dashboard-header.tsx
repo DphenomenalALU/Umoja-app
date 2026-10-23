@@ -14,6 +14,7 @@ type DashboardHeaderProps = {
   setSearchOpen: (open: boolean) => void;
   events: UmojaEvent[];
   notifications: CommunityNotification[];
+  isMockDataMode: boolean;
   onReadNotification: (notificationId: string) => void;
   onMarkAllNotificationsRead: () => void;
   onSelectNotificationEvent: (eventId: string) => void;
@@ -27,6 +28,7 @@ export default function DashboardHeader({
   setSearchOpen,
   events,
   notifications,
+  isMockDataMode,
   onReadNotification,
   onMarkAllNotificationsRead,
   onSelectNotificationEvent,
@@ -39,7 +41,7 @@ export default function DashboardHeader({
             <Menu size={15} />
           </CRMButton>
           <h1>{active}</h1>
-          <span className="crm-status"><i />Sample workspace</span>
+          <span className="crm-status"><i />{isMockDataMode ? "demo" : "PostgreSQL workspace"}</span>
         </div>
         <div className="crm-header-actions flex shrink-0 items-center gap-2">
           <CRMButton variant="secondary" size="icon" aria-label="Search events" onClick={() => setSearchOpen(!searchOpen)}>

@@ -24,7 +24,7 @@ export function parseNewEvent(input: unknown): NewEvent {
   const startsAt = typeof value.startsAt === "string" ? new Date(value.startsAt) : new Date(Number.NaN);
 
   if (title.length < 3 || title.length > 120) {
-    throw new ApiError("Event names must be between 3 and 120 characters.");
+    throw new ApiError("Names of events must be between 3 and 120 characters.");
   }
   if (kind !== "meeting" && kind !== "volunteer") {
     throw new ApiError("Choose a meeting or volunteer event.");
