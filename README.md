@@ -1,57 +1,161 @@
-# Umoja Baraza
+# Umoja
 
-Umoja Baraza is a shared place for community meetings and volunteer events. People can find an event, sign up, and build a record of the work they did together.
+> Meet, decide, and act together.
 
-## Stack
+## African Context
 
-- Next.js App Router, React, TypeScript, and Tailwind CSS
-- shadcn/ui with Radix primitives
-- PostgreSQL through `pg`
-- Jest with `ts-jest`
+Community meetings and volunteer opportunities are often announced through word of mouth and scattered messaging groups. Residents can miss dates, organizers cannot easily see who plans to attend, and volunteer hours are hard to track. Umoja brings event details, sign-ups, attendance, and volunteer history into one place for community groups.
 
-## Run locally
+The team is still confirming its pilot community and gathering local feedback. The project is scoped for community leaders, youth groups, NGOs, and residents who already coordinate activities together.
 
-Use Node.js 20.9 or newer.
+## Team Members
+
+- Ibrahim Salami - Team lead, planning, product scope, integration, and submission - Student ID: TBD
+- Evander Manna - Backend, PostgreSQL, and repository hygiene - Student ID: TBD
+- Veronica Wanjuu - Frontend and event API integration - Student ID: TBD
+- Alice Uwase - Quality assurance, Jest, and attendance/profile follow-up - Student ID: TBD
+
+## Project Overview
+
+Umoja is a community coordination app for meetings and volunteer events. Organizers can publish an event with its date, venue, agenda, and (for volunteer events) a volunteer limit. Residents can browse events and RSVP, while organizers can record attendance and volunteer hours for each person.
+
+The current Next.js app has a PostgreSQL-backed event flow: the workspace loads events, organizers can create them, and residents can sign up with capacity checks. PostgreSQL API routes and feature services also support check-in, volunteer hours, and profile history. The Attendance and Volunteers dashboard screens still use sample state, and the login page is a preview; authentication and organizer permissions are not implemented.
+
+### Target Users
+
+- Community leaders and residents' associations
+- Youth groups and students
+- NGOs and community-based organizations
+- Residents and volunteers
+
+### Core Features
+
+- **Create and announce events:** Publish community meetings and volunteer events with a date, venue, agenda, and volunteer capacity.
+- **RSVP and volunteer sign-up:** Join an event and show organizers how many spaces remain.
+- **Check-in and attendance:** Confirm attendance and record volunteer hours through the API.
+- **Volunteer profiles:** Retrieve attended events and total hours through the profile API.
+
+## Technology Stack
+
+- **Backend:** Next.js App Router route handlers and TypeScript feature services
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS, and shadcn/ui
+- **Database:** PostgreSQL with `pg` (node-postgres)
+- **Testing:** Jest and ts-jest
+- **Other:** npm and ESLint
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20.9 or newer
+- npm
+- PostgreSQL 13 or newer
+
+### Installation
+
+1. Clone the `dev` branch and enter the project directory:
+
+   ```bash
+   git clone --branch dev --single-branch https://github.com/DphenomenalALU/Umoja-app.git
+   cd Umoja-app
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Create a PostgreSQL database, copy the example environment file, and set `DATABASE_URL` in `.env.local`:
+
+   ```bash
+   createdb umoja
+   cp .env.example .env.local
+   ```
+
+   Replace the sample connection string with the username, password, host, and database used by your local PostgreSQL setup. Keep `.env.local` private; it is ignored by Git.
+
+4. Apply the database schema. Adjust the example credentials if your local setup uses different ones:
+
+   ```bash
+   psql "postgresql://postgres:password@localhost:5432/umoja" -f backend/migrations/001_initial_schema.sql
+   ```
+
+5. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000) for the landing page or [http://localhost:3000/dashboard](http://localhost:3000/dashboard) for the workspace. If PostgreSQL is unavailable, the workspace shows labeled sample events and the API returns a database connection error.
+
+### Usage
+
+List events:
 
 ```bash
-npm install
-npm run dev
+curl http://localhost:3000/api/events
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The landing page links to a sample workspace. Its sample events and attendance are held in browser state so the interface can be reviewed without a database.
-
-## PostgreSQL API
-
-Create a PostgreSQL database, copy `.env.example` to `.env.local`, and set `DATABASE_URL` to the database connection string. Apply the initial schema:
+Create a volunteer event:
 
 ```bash
-psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql
+curl -X POST http://localhost:3000/api/events \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Community garden day","kind":"volunteer","startsAt":"2030-11-07T08:00:00Z","venue":"Community garden","agenda":"Prepare beds and plant seedlings","capacity":20}'
 ```
 
-The API reads and writes to that database:
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/events` | List events and active sign-up counts |
-| `POST` | `/api/events` | Create a meeting or volunteer event |
-| `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance |
-| `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
-| `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours |
-| `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history |
-
-Feature services are separated under `backend/src/events`, `signups`, `checkin`, and `profiles`. The sign-up transaction locks an event row while checking capacity, which prevents concurrent requests from taking the final spot twice.
-
-The login page is a preview entry point. Authentication and organizer permissions still need an agreed provider and policy before the API is exposed to a community.
-
-## Checks
+Use the returned event `id` to sign up. The response includes a signup `id` that can be used to check in the volunteer:
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
+curl -X POST http://localhost:3000/api/events/<event-id>/signups \
+  -H 'Content-Type: application/json' \
+  -d '{"fullName":"Amina Dube","email":"amina@example.org"}'
+
+curl -X POST http://localhost:3000/api/events/<event-id>/checkin \
+  -H 'Content-Type: application/json' \
+  -d '{"signupId":"<signup-id>","volunteerHours":2.5}'
 ```
 
-## UI references
+These routes list sign-ups and volunteer history:
 
-The marketing feature preview follows Omentir’s interactive tabbed showcase pattern. The app shell adapts the Sales CRM sidebar, tab header, and dense list/table components for events and volunteers.
+```bash
+curl http://localhost:3000/api/events/<event-id>/signups
+curl 'http://localhost:3000/api/profiles?email=amina@example.org'
+```
+
+Replace `<event-id>` and `<signup-id>` with IDs returned by the API.
+
+## Project Structure
+
+```text
+app/
+  api/                         Next.js API routes for events, sign-ups, check-in, and profiles
+  dashboard/                   Organizer workspace
+  login/                       Login preview
+backend/
+  migrations/                  PostgreSQL schema
+  src/
+    events/                    Event service
+    signups/                   RSVP and capacity service
+    checkin/                   Attendance and hours service
+    profiles/                  Volunteer history service
+    shared/                    Validation and shared errors
+components/
+  dashboard/                   Workspace, event, and notification components
+  marketing/                   Landing page components
+  ui/                          Shared UI primitives
+lib/                           Frontend event API client
+```
+
+## Links
+
+- [GitHub repository](https://github.com/DphenomenalALU/Umoja-app)
+- [Umoja F1 project board](https://github.com/users/DphenomenalALU/projects/2)
+- [F1 team plan](docs/F1_TEAM_PLAN.md)
+- [Course README template](https://github.com/ALU-BSE/devops-2025s-templates/blob/main/formative-1-readme-template.md)
+- [License](LICENSE)
+
+## License
+
+MIT. See [LICENSE](LICENSE).
