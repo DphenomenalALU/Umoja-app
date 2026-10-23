@@ -43,15 +43,13 @@ The current Next.js app has a PostgreSQL-backed event flow: the workspace loads 
 
 ## Tests
 
-Run the new Jest unit tests:
+Run the full Jest suite:
 
 ~~~bash
-npm test -- --runTestsByPath backend/src/shared/event-input.test.ts backend/src/signups/capacity.test.ts backend/src/signups/signup-service.test.ts
+npm test
 ~~~
 
-These cover event input validation, sign-up capacity, and the sign-up service. The service tests mock PostgreSQL and do not need a database.
-
-The pre-existing app/api/events/route.test.ts still uses Node's node:test and a relative fetch() URL. It needs conversion before the full Jest suite can run cleanly with npm test.
+The tests cover event input validation, sign-up capacity and service behavior, and the events API route contract. They do not require a running PostgreSQL database: service tests mock the connection pool, and the route test checks invalid input before making a database call. To demonstrate real PostgreSQL-backed event creation and listing, follow the local setup and API steps below.
 
 ## Getting Started
 
