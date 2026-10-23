@@ -41,6 +41,18 @@ The current Next.js app has a PostgreSQL-backed event flow: the workspace loads 
 - **Testing:** Jest and ts-jest
 - **Other:** npm and ESLint
 
+## Tests
+
+Run the new Jest unit tests:
+
+~~~bash
+npm test -- --runTestsByPath backend/src/shared/event-input.test.ts backend/src/signups/capacity.test.ts backend/src/signups/signup-service.test.ts
+~~~
+
+These cover event input validation, sign-up capacity, and the sign-up service. The service tests mock PostgreSQL and do not need a database.
+
+The pre-existing app/api/events/route.test.ts still uses Node's node:test and a relative fetch() URL. It needs conversion before the full Jest suite can run cleanly with npm test.
+
 ## Getting Started
 
 ### Prerequisites
