@@ -14,6 +14,7 @@ export type UmojaEvent = {
   venue: string;
   agenda: string;
   capacity: number | null;
+  signupCount?: number;
   attendees: Attendee[];
 };
 export type View = "Events" | "Attendance" | "Volunteers";
