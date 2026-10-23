@@ -32,9 +32,10 @@ function stop(event: MouseEvent) {
 }
 
 export default function EventRow({ event, selected, active, onToggle, onOpen }: EventRowProps) {
+  const signupCount = event.signupCount ?? event.attendees.length;
   const spacesLeft = event.capacity === null
     ? null
-    : Math.max(0, event.capacity - event.attendees.length);
+    : Math.max(0, event.capacity - signupCount);
 
   return (
     <TableRow
@@ -66,7 +67,7 @@ export default function EventRow({ event, selected, active, onToggle, onOpen }: 
       <TableCell role="cell" className={cellClass("people")}>
         <span className="crm-people-cell">
           <AvatarStack people={event.attendees} />
-          <span>{event.attendees.length}</span>
+          <span>{signupCount}</span>
         </span>
       </TableCell>
       <TableCell role="cell" className={cellClass("spaces")}>
@@ -75,7 +76,7 @@ export default function EventRow({ event, selected, active, onToggle, onOpen }: 
         ) : (
           <span className="crm-capacity-cell">
             <i>
-              <b style={{ width: `${Math.min(100, (event.attendees.length / (event.capacity ?? 1)) * 100)}%` }} />
+              <b style={{ width: `${Math.min(100, (signupCount / (event.capacity ?? 1)) * 100)}%` }} />
             </i>
             <span>{spacesLeft} / {event.capacity}</span>
           </span>
