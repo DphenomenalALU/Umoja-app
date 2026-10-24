@@ -8,7 +8,7 @@ Umoja is being designed for community leaders and youth volunteers coordinating 
 
 Research based on 21 interviews with youth volunteers, residents, and local and government leaders in Huye District found that social media helped with information sharing and collaborative problem-solving during COVID-19 ([Bimenyimana et al., 2025](https://link.springer.com/article/10.1007/s44155-025-00223-3)). The study concerns pandemic response in Huye, not missed event announcements or attendance tracking in Kigali, so it provides context about digital coordination rather than proof of Umoja's specific product need.
 
-**Problem hypothesis:** Details for local meetings and volunteer days can be spread across conversations, while organizers need a clear view of RSVPs, capacity, attendance, and volunteer contributions. Umoja brings event details, sign-ups, check-ins, and volunteer history together. The cited sources establish the local activity and communication context; conversations with Kigali organizers and volunteers are still needed to confirm how often these coordination gaps occur and whether this workflow fits their needs.
+**Problem hypothesis:** Details for local meetings and volunteer days can be spread across conversations, while organizers need a clear view of RSVPs, capacity, attendance, and volunteer contributions. Umoja brings event details, sign-ups, check-ins, and volunteer history together. The cited sources establish the local activity and communication context, but they do not validate this specific coordination gap. The team has not yet interviewed Kigali organizers or volunteers; those conversations are a next step to check whether this hypothesis matches their experience.
 
 ## Team Members
 
