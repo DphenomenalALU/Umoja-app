@@ -178,7 +178,7 @@ Node.js: 20.x (minimum 20.9); use Node 20 in CI.
 App port: 3000; set PORT=3000 in the container.
 Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hostname; for local development, use localhost.
 Health check: GET /api/health returns 200 when the app can reach PostgreSQL and 503 when the database check fails. Veronica is adding this route in issue #27.
-Schema migration: psql DATABASE_URL -f backend/migrations/001_initial_schema.sql
+Schema migration: `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`
 Local start: npm run dev. Production start: npm run build followed by npm run start.
 CI checks: npm ci, npm test, npm run lint, npm run typecheck, and npm run build.
 
