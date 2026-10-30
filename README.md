@@ -2,9 +2,13 @@
 
 > Meet, decide, and act together.
 
-## African Context
+## African Context: Community Work in Kigali, Rwanda
 
-Community meetings and volunteer opportunities are often announced through word of mouth and scattered messaging groups. Residents can miss dates, organizers cannot easily see who plans to attend, and volunteer hours are hard to track. Umoja brings event details, sign-ups, attendance, and volunteer history into one place for community groups.
+Umoja is being designed for community leaders and youth volunteers coordinating recurring activities in an urban Rwandan context. At Kimisagara YEGO Center in Kigali, the Community Outreach Program describes youth volunteerism and monthly or thematic Umuganda, including environmental cleanups and public-space improvements ([Kimisagara YEGO Center](https://www.yego.gov.rw/programs/community-outreach-program)). Rwanda National Police also documented residents and youth volunteers taking part in an Umuganda tree-planting activity in Gasogi, Gasabo District ([Rwanda National Police, October 2025](https://police.gov.rw/rw/amakuru/amakuru-ya-polisi/news-detail/news/umuganda-rwanda-national-police-join-gasogi-residents-in-tree-planting-drive-to-conserve-the-enviro/)). These are concrete examples of the community meetings and volunteer events Umoja is intended to support; they are not Umoja pilots or partnerships.
+
+Research based on 21 interviews with youth volunteers, residents, and local and government leaders in Huye District found that social media helped with information sharing and collaborative problem-solving during COVID-19 ([Bimenyimana et al., 2025](https://link.springer.com/article/10.1007/s44155-025-00223-3)). The study concerns pandemic response in Huye, not missed event announcements or attendance tracking in Kigali, so it provides context about digital coordination rather than proof of Umoja's specific product need.
+
+**Problem hypothesis:** Details for local meetings and volunteer days can be spread across conversations, while organizers need a clear view of RSVPs, capacity, attendance, and volunteer contributions. Umoja brings event details, sign-ups, check-ins, and volunteer history together. The cited sources establish the local activity and communication context; conversations with Kigali organizers and volunteers are still needed to confirm how often these coordination gaps occur and whether this workflow fits their needs.
 
 ## Team Members
 
@@ -166,3 +170,16 @@ lib/                           Frontend event API client
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## Formative 2: Runtime Contract
+
+Node.js: 20.x (minimum 20.9); use Node 20 in CI.
+App port: 3000; set PORT=3000 in the container.
+Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hostname; for local development, use localhost.
+Health check: GET /api/health returns 200 when the app can reach PostgreSQL and 503 when the database check fails. Veronica is adding this route in issue #27.
+Schema migration: `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`
+Local start: npm run dev. Production start: npm run build followed by npm run start.
+CI checks: npm ci, npm test, npm run lint, npm run typecheck, and npm run build.
+
+The team writes its own Docker, Compose, and CI configuration for the assessment.
