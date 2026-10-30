@@ -1,0 +1,40 @@
+name: Umoja PR Checks
+
+on:
+  push:
+    branches-ignore:
+      - main
+  
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Umoja PR Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript Type Check
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Jest Tests
+        run: npm test
