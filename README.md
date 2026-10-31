@@ -101,6 +101,24 @@ The tests cover event input validation, sign-up capacity and service behavior, a
 
 Open [http://localhost:3000](http://localhost:3000) for the landing page or [http://localhost:3000/dashboard](http://localhost:3000/dashboard) for the workspace. If PostgreSQL is unavailable, the workspace shows labeled sample events and the API returns a database connection error.
 
+### Run with Docker Compose
+
+Copy the example environment file. Compose reads `.env` for the PostgreSQL credentials; the app container builds its database URL with the `postgres` service hostname.
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
+```
+
+Apply the schema inside the running database container, then start the app:
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backend/migrations/001_initial_schema.sql
+docker compose up --build -d umoja
+```
+
+The workspace is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard). Check service status with `docker compose ps`; stop the stack with `docker compose down`. To remove the saved database data as well, run `docker compose down -v`.
+
 ### Usage
 
 List events:
