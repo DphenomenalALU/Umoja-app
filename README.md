@@ -33,6 +33,7 @@ The API reads and writes to that database:
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/events` | List events and active sign-up counts |
+| `GET` | `/api/health` | Check app and PostgreSQL readiness: `200` `{"status":"healthy","database":"ready"}`, or `503` `{"status":"unhealthy","database":"unavailable"}` |
 | `POST` | `/api/events` | Create a meeting or volunteer event |
 | `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance |
 | `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
