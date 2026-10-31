@@ -59,7 +59,7 @@ The tests cover event input validation, sign-up capacity and service behavior, a
 
 ### Prerequisites
 
-- Node.js 20.9 or newer
+- Node.js 22 or newer
 - npm
 - PostgreSQL 13 or newer
 
@@ -103,21 +103,14 @@ Open [http://localhost:3000](http://localhost:3000) for the landing page or [htt
 
 ### Run with Docker Compose
 
-Copy the example environment file. Compose reads `.env` for the PostgreSQL credentials; the app container builds its database URL with the `postgres` service hostname.
+Copy the example environment file, then build and start Umoja and PostgreSQL together. Compose reads `.env` for the database credentials. The app uses the `postgres` service hostname inside the network, and PostgreSQL loads the schema automatically when it initializes a new data volume.
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+docker compose up --build
 ```
 
-Apply the schema inside the running database container, then start the app:
-
-```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backend/migrations/001_initial_schema.sql
-docker compose up --build -d umoja
-```
-
-The workspace is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard). Check service status with `docker compose ps`; stop the stack with `docker compose down`. To remove the saved database data as well, run `docker compose down -v`.
+The workspace is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard). Check app and database readiness at [http://localhost:3000/api/health](http://localhost:3000/api/health), or run `docker compose ps` to see both service health states. Stop the stack with `docker compose down`; the database volume remains. To reset the database and have PostgreSQL apply the schema again on the next start, run `docker compose down -v` and then `docker compose up --build`.
 
 ### Usage
 
@@ -202,12 +195,12 @@ MIT. See [LICENSE](LICENSE).
 
 ## Formative 2: Runtime Contract
 
-Node.js: 20.x (minimum 20.9); use Node 20 in CI.
+Node.js: 22.x for local development, the container, and CI.
 App port: 3000; set PORT=3000 in the container.
 Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hostname; for local development, use localhost.
 Health check: `GET /api/health` returns 200 when the app can query PostgreSQL and 503 when it cannot.
-Schema migration: `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`
-Local start: npm run dev. Production start: npm run build followed by npm run start.
+Schema migration: Compose runs `backend/migrations/001_initial_schema.sql` automatically when it initializes a new PostgreSQL volume. For an existing database, run `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`.
+Local start: `npm run dev`. Production start: `npm run build` followed by `npm run start`; the container runs the Next.js standalone server.
 CI checks: npm ci, npm run typecheck, npm run lint, npm test, and a Docker image build (which runs npm run build).
 CI image: branch pushes publish `ghcr.io/dphenomenalu/umoja-app:<commit-sha>`; pull requests build without publishing.
 
