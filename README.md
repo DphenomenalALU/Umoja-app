@@ -121,6 +121,16 @@ The workspace is available at [http://localhost:3000/dashboard](http://localhost
 
 ### Usage
 
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/events` | List events and active sign-up counts |
+| `GET` | `/api/health` | Check app and PostgreSQL readiness: `200` `{"status":"healthy","database":"ready"}`, or `503` `{"status":"unhealthy","database":"unavailable"}` |
+| `POST` | `/api/events` | Create a meeting or volunteer event |
+| `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance |
+| `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
+| `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours |
+| `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history |
+
 List events:
 
 ```bash
@@ -195,7 +205,7 @@ MIT. See [LICENSE](LICENSE).
 Node.js: 20.x (minimum 20.9); use Node 20 in CI.
 App port: 3000; set PORT=3000 in the container.
 Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hostname; for local development, use localhost.
-Health check: GET /api/health returns 200 when the app can reach PostgreSQL and 503 when the database check fails. Veronica is adding this route in issue #27.
+Health check: `GET /api/health` returns 200 when the app can query PostgreSQL and 503 when it cannot.
 Schema migration: `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`
 Local start: npm run dev. Production start: npm run build followed by npm run start.
 CI checks: npm ci, npm test, npm run lint, npm run typecheck, and npm run build.
