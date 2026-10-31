@@ -1,29 +1,37 @@
-# Use a specific node.js base image
-FROM node:20-alpine
-
-# Set the working directory inside the container
+FROM node:22-alpine AS base
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
-
-# Install dependencies 
+# Installing from the lockfile in its own layer lets source edits reuse dependencies.
+FROM base AS deps
+COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy the rest of the source code to the working directory
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the production version 
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Create a noon-root user
-RUN addgroup -S umoja && adduser -S umoja -G umoja
+# Keep build tools and the full source tree out of the runtime image.
+FROM node:22-alpine AS runner
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
 
-#Switch to the non-root user
-USER umoja
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
 
-# Expose the port that the application will run on
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# The readiness route checks both the app and its database connection.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["node", "server.js"]
