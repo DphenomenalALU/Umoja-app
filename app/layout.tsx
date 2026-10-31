@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import localFont from "next/font/local";
+import ReactGrabLoader from "@/components/react-grab-loader";
 import "./globals.css";
 
 const geist = localFont({
@@ -30,7 +31,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} ${interTight.variable} ${newsreader.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        <ReactGrabLoader />
+      </body>
     </html>
   );
 }
