@@ -208,6 +208,7 @@ Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hos
 Health check: `GET /api/health` returns 200 when the app can query PostgreSQL and 503 when it cannot.
 Schema migration: `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`
 Local start: npm run dev. Production start: npm run build followed by npm run start.
-CI checks: npm ci, npm test, npm run lint, npm run typecheck, and npm run build.
+CI checks: npm ci, npm run typecheck, npm run lint, npm test, and a Docker image build (which runs npm run build).
+CI image: branch pushes publish `ghcr.io/dphenomenalu/umoja-app:<commit-sha>`; pull requests build without publishing.
 
 The team writes its own Docker, Compose, and CI configuration for the assessment.
