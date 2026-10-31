@@ -193,15 +193,13 @@ lib/                           Frontend event API client
 MIT. See [LICENSE](LICENSE).
 
 
-## Formative 2: Runtime Contract
+## Runtime and Operations
 
-Node.js: 22.x for local development, the container, and CI.
-App port: 3000; set PORT=3000 in the container.
-Database: the app reads DATABASE_URL. In Compose, use the PostgreSQL service hostname; for local development, use localhost.
-Health check: `GET /api/health` returns 200 when the app can query PostgreSQL and 503 when it cannot.
-Schema migration: Compose runs `backend/migrations/001_initial_schema.sql` automatically when it initializes a new PostgreSQL volume. For an existing database, run `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`.
-Local start: `npm run dev`. Production start: `npm run build` followed by `npm run start`; the container runs the Next.js standalone server.
-CI checks: npm ci, npm run typecheck, npm run lint, npm test, and a Docker image build (which runs npm run build).
-CI image: branch pushes publish `ghcr.io/dphenomenalu/umoja-app:<commit-sha>`; pull requests build without publishing.
-
-The team writes its own Docker, Compose, and CI configuration for the assessment.
+- **Node.js:** 22.x for local development, the container, and CI.
+- **App port:** 3000.
+- **Database:** The app reads `DATABASE_URL`. Compose connects through the `postgres` service; local development uses `localhost`.
+- **Health:** `GET /api/health` returns `200` when the app can query PostgreSQL and `503` when it cannot.
+- **Schema:** On a fresh Compose volume, PostgreSQL loads `backend/migrations/001_initial_schema.sql` at startup. For an existing database, run `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`.
+- **Development:** `npm run dev`. For a production build, run `npm run build` then `npm run start`. The container runs the Next.js standalone server.
+- **CI:** `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, then the Docker image build.
+- **Published image:** Branch pushes publish `ghcr.io/dphenomenalu/umoja-app:<commit-sha>`; pull requests build without publishing.
