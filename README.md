@@ -2,9 +2,13 @@
 
 > Meet, decide, and act together.
 
-## African Context
+## African Context: Community Work in Kigali, Rwanda
 
-Community meetings and volunteer opportunities are often announced through word of mouth and scattered messaging groups. Residents can miss dates, organizers cannot easily see who plans to attend, and volunteer hours are hard to track. Umoja brings event details, sign-ups, attendance, and volunteer history into one place for community groups.
+Umoja is being designed for community leaders and youth volunteers coordinating recurring activities in an urban Rwandan context. At Kimisagara YEGO Center in Kigali, the Community Outreach Program describes youth volunteerism and monthly or thematic Umuganda, including environmental cleanups and public-space improvements ([Kimisagara YEGO Center](https://www.yego.gov.rw/programs/community-outreach-program)). Rwanda National Police also documented residents and youth volunteers taking part in an Umuganda tree-planting activity in Gasogi, Gasabo District ([Rwanda National Police, October 2025](https://police.gov.rw/rw/amakuru/amakuru-ya-polisi/news-detail/news/umuganda-rwanda-national-police-join-gasogi-residents-in-tree-planting-drive-to-conserve-the-enviro/)). These are concrete examples of the community meetings and volunteer events Umoja is intended to support; they are not Umoja pilots or partnerships.
+
+Research based on 21 interviews with youth volunteers, residents, and local and government leaders in Huye District found that social media helped with information sharing and collaborative problem-solving during COVID-19 ([Bimenyimana et al., 2025](https://link.springer.com/article/10.1007/s44155-025-00223-3)). The study concerns pandemic response in Huye, not missed event announcements or attendance tracking in Kigali, so it provides context about digital coordination rather than proof of Umoja's specific product need.
+
+**Problem hypothesis:** Details for local meetings and volunteer days can be spread across conversations, while organizers need a clear view of RSVPs, capacity, attendance, and volunteer contributions. Umoja brings event details, sign-ups, check-ins, and volunteer history together. The cited sources establish the local activity and communication context; conversations with Kigali organizers and volunteers are still needed to confirm how often these coordination gaps occur and whether this workflow fits their needs.
 
 ## Team Members
 
@@ -55,7 +59,7 @@ The tests cover event input validation, sign-up capacity and service behavior, a
 
 ### Prerequisites
 
-- Node.js 20.9 or newer
+- Node.js 22 or newer
 - npm
 - PostgreSQL 13 or newer
 
@@ -97,7 +101,28 @@ The tests cover event input validation, sign-up capacity and service behavior, a
 
 Open [http://localhost:3000](http://localhost:3000) for the landing page or [http://localhost:3000/dashboard](http://localhost:3000/dashboard) for the workspace. If PostgreSQL is unavailable, the workspace shows labeled sample events and the API returns a database connection error.
 
+### Run with Docker Compose
+
+Copy the example environment file, then build and start Umoja and PostgreSQL together. Compose reads `.env` for the database credentials. The app uses the `postgres` service hostname inside the network, and PostgreSQL loads the schema automatically when it initializes a new data volume.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+The workspace is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard). Check app and database readiness at [http://localhost:3000/api/health](http://localhost:3000/api/health), or run `docker compose ps` to see both service health states. Stop the stack with `docker compose down`; the database volume remains. To reset the database and have PostgreSQL apply the schema again on the next start, run `docker compose down -v` and then `docker compose up --build`.
+
 ### Usage
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/events` | List events and active sign-up counts |
+| `GET` | `/api/health` | Check app and PostgreSQL readiness: `200` `{"status":"healthy","database":"ready"}`, or `503` `{"status":"unhealthy","database":"unavailable"}` |
+| `POST` | `/api/events` | Create a meeting or volunteer event |
+| `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance |
+| `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
+| `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours |
+| `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history |
 
 List events:
 
@@ -166,3 +191,15 @@ lib/                           Frontend event API client
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## Runtime and Operations
+
+- **Node.js:** 22.x for local development, the container, and CI.
+- **App port:** 3000.
+- **Database:** The app reads `DATABASE_URL`. Compose connects through the `postgres` service; local development uses `localhost`.
+- **Health:** `GET /api/health` returns `200` when the app can query PostgreSQL and `503` when it cannot.
+- **Schema:** On a fresh Compose volume, PostgreSQL loads `backend/migrations/001_initial_schema.sql` at startup. For an existing database, run `psql "$DATABASE_URL" -f backend/migrations/001_initial_schema.sql`.
+- **Development:** `npm run dev`. For a production build, run `npm run build` then `npm run start`. The container runs the Next.js standalone server.
+- **CI:** `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, then the Docker image build.
+- **Published image:** Branch pushes publish `ghcr.io/dphenomenalu/umoja-app:<commit-sha>`; pull requests build without publishing.
