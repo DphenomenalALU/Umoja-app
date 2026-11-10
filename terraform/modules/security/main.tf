@@ -23,7 +23,6 @@ resource "aws_security_group" "umoja" {
 
   # The instance needs outbound web access for package updates and downloads.
   # The rule is limited to web ports; revisit it if an egress proxy is added.
-  #trivy:ignore:AWS-0104
   egress {
     description = "Web access for updates and downloads"
     from_port   = 80
