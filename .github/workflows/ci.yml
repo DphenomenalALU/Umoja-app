@@ -31,6 +31,26 @@ jobs:
       - name: Dependency scan (npm audit)
         run: npm audit --audit-level=high
 
+      - name: Infrastructure scan report (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          scan-type: config
+          scan-ref: terraform/
+          format: table
+          exit-code: "0"
+
+      - name: Infrastructure scan (Trivy, fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          skip-setup-trivy: true
+          scan-type: config
+          scan-ref: terraform/
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
       - name: TypeScript type check
         run: npm run typecheck
 

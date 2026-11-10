@@ -14,7 +14,7 @@ All scans run in GitHub Actions on every pull request.
 | --- | --- | --- | --- |
 | Dependency scan | `npm audit` | npm packages in `package-lock.json`, including development tools | Active |
 | Container image scan | Trivy | The Docker image built from `Dockerfile`: Alpine system packages and Node.js | Active |
-| IaC scan | TBD (Trivy config or Checkov) | Terraform files in `terraform/` | Planned, after Terraform is merged |
+| IaC scan | Trivy | Terraform files in `terraform/` | Active |
 
 
 ## Severity thresholds
@@ -107,6 +107,8 @@ We accept the advisories below for now.
 
 ## Infrastructure-as-code scan
 
+Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
+
 
 ## Run the scans locally
 
@@ -121,5 +123,11 @@ npm audit --omit=dev
 docker build -t umoja:local .
 trivy image umoja:local
 trivy image --severity HIGH,CRITICAL --exit-code 1 umoja:local
+
+# Terraform configuration, reporting all findings
+trivy config terraform/
+
+# Terraform configuration, failing on high or critical findings
+trivy config --severity HIGH,CRITICAL --exit-code 1 terraform/
 ```
 
