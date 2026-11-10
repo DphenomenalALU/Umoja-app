@@ -20,7 +20,10 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 nodejs \
+# The app runs with node alone, so drop the bundled npm (and its vulnerable dependencies) and corepack.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+        /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
