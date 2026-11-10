@@ -7,16 +7,16 @@ import {
 export async function GET(
   request: Request,
   context: {
-    params: {
+    params: Promise<{
       personId: string;
-    };
+    }>;
   }
 ) {
   try {
-
+    const { personId } = await context.params;
     const result =
       await getVolunteerHistory(
-        context.params.personId
+        personId
       );
 
     return NextResponse.json(result);
