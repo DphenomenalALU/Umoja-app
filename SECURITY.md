@@ -109,6 +109,8 @@ We accept the advisories below for now.
 
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
 
+The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on ports 80 and 443 only. Trivy's AWS-0104 rule still flags the public destination range, so that one finding is ignored on the egress rule and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints.
+
 
 ## Run the scans locally
 

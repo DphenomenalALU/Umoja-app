@@ -27,6 +27,14 @@ resource "aws_instance" "umoja" {
 
   associate_public_ip_address = true
 
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  root_block_device {
+    encrypted = true
+  }
+
   vpc_security_group_ids = [
     var.security_group_id
   ]
