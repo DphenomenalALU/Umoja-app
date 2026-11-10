@@ -9,7 +9,7 @@ Umoja is a community engagement platform that supports community meetings, volun
 The configuration provisions:
 
 - A dedicated VPC
-- A public subnet
+- A public subnet with an internet gateway and route
 - Network security rules
 - An Ubuntu 24.04 EC2 instance
 - Reusable outputs for deployment and troubleshooting
@@ -143,7 +143,7 @@ vpc_cidr           = "10.0.0.0/16"
 
 public_subnet_cidr = "10.0.1.0/24"
 
-ssh_cidr           = "0.0.0.0/0"
+ssh_cidr           = "198.51.100.10/32"
 
 key_name           = "umoja-key"
 
@@ -173,11 +173,11 @@ SSH access is configurable through:
 
 ssh_cidr
 
-This allows deployments to restrict administrative access to approved networks.
+Replace this example with the public IP address of the administrator running SSH.
 
 Example:
 
-ssh_cidr = "197.xx.xx.xx/32"
+ssh_cidr = "198.51.100.10/32"
 
 ---
 
