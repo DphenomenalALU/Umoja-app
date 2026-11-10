@@ -12,7 +12,7 @@ All scans run in GitHub Actions on every pull request.
 
 | Scan | Tool | What it checks | Status |
 | --- | --- | --- | --- |
-| Dependency scan | `npm audit` | npm packages in `package-lock.json`, including development tools | Planned |
+| Dependency scan | `npm audit` | npm packages in `package-lock.json`, including development tools | Active |
 | Container image scan | Trivy | The Docker image built from `Dockerfile`: Alpine system packages and Node.js | Planned |
 | IaC scan | TBD (Trivy config or Checkov) | Terraform files in `terraform/` | Planned, after Terraform is merged |
 
@@ -38,7 +38,7 @@ The dependency scan checks development packages as well as production packages. 
 
 **Result:** 27 findings: 0 critical, 0 high, 23 moderate, 4 low. With the high/critical threshold, this scan passes.
 
-> Source: local run of `npm audit` on 2026-11-10 (Node 22.16.0, npm 11.6.0) against the `dev` branch. Replace with a link to the first CI run once the scan is in the workflow, and update the numbers if they differ.
+> Link to the CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42730079814/job/129545570207 
 
 The 27 findings come from only **3 advisories**. The other entries are packages that depend on the affected ones (for example, `jest` is flagged because it uses `glob`).
 
