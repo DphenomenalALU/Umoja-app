@@ -1,18 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import {
-  ArrowDownToLine, ArrowRight, CalendarDays, Check, CheckCheck,
-  Clock3, HandHeart, MapPin, MoreHorizontal, Plus, UsersRound, X,
-} from "lucide-react";
+import { ArrowRight, CalendarDays, Check, HandHeart, MapPin, Plus, X } from "lucide-react";
 import Button from "@/components/dashboard/crm-button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import FilterMenu from "@/components/dashboard/filter-menu";
 import EventsTable from "@/components/dashboard/events-table";
 import EventsToolbar from "@/components/dashboard/events-toolbar";
 import DashboardHeader from "@/components/dashboard/dashboard-header";
 import DashboardSidebar from "@/components/dashboard/dashboard-sidebar";
+import { AttendanceView, VolunteersView } from "@/components/dashboard/attendance-views";
 import { initialNotifications } from "@/components/dashboard/notification-data";
 import { initialsColor, KindPill } from "@/components/dashboard/event-visuals";
 import type { Attendee, Kind, UmojaEvent, View } from "@/components/dashboard/types";
@@ -78,34 +73,6 @@ function EventsView({ events, openDetails, openCreate, searchOpen, activeEventId
     <EventsToolbar sort={sort} setSort={setSort} typeFilter={typeFilter} setTypeFilter={setTypeFilter} signUpFilter={signUpFilter} setSignUpFilter={setSignUpFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} resultCount={visible.length} searchOpen={searchOpen} query={query} setQuery={setQuery} openCreate={openCreate} />
     <EventsTable events={visible} selectedIds={selectedIds} activeEventId={activeEventId} onToggleAll={toggleAll} onToggle={toggleSelected} onOpen={openDetails} />
   </section>;
-}
-
-function AttendanceView({ events, onToggle }: { events: UmojaEvent[]; onToggle: (eventId: string, attendeeName: string, hours: number) => void }) {
-  const volunteerEvents = events.filter((event) => event.kind === "Volunteer day");
-  const [selectedId, setSelectedId] = useState(volunteerEvents[0]?.id ?? events[0]?.id);
-  const [hoursByPerson, setHoursByPerson] = useState<Record<string, string>>({});
-  const event = events.find((item) => item.id === selectedId) ?? volunteerEvents[0] ?? events[0];
-  if (!event) return null;
-  const checked = event.attendees.filter((person) => person.checkedIn).length;
-  return <section className="crm-workspace-view">
-    <div className="crm-view-toolbar"><div className="crm-filter-row"><FilterMenu label="Event" value={event.id} options={events.map((item) => ({ value: item.id, label: item.title }))} onChange={setSelectedId} /><span className="crm-inline-stat"><CheckCheck size={14} />{checked} / {event.attendees.length} checked in</span></div><div className="crm-actions"><Button variant="secondary" size="sm"><ArrowDownToLine size={13} />Export</Button></div></div>
-    <ScrollArea orientation="both" className="crm-table-scroll"><Table role="table" className="crm-table crm-table-attendance grid min-w-max grid-cols-[repeat(5,max-content)] justify-between"><TableHeader role="rowgroup" className="contents"><TableRow role="row" className="crm-table-row"><TableHead role="columnheader">Volunteer</TableHead><TableHead role="columnheader">Sign-up</TableHead><TableHead role="columnheader">Hours given</TableHead><TableHead role="columnheader">Check-in</TableHead><TableHead role="columnheader">Action</TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="contents">{event.attendees.map((person, index) => <TableRow role="row" className="crm-table-row" key={person.name}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">Signed up</TableCell><TableCell role="cell">{event.kind === "Volunteer day" ? person.checkedIn ? `${formatHours(person.hours)} hrs` : <label className="crm-hours-input"><input type="number" aria-label={`Hours for ${person.name}`} min="0.25" max="24" step="0.25" value={hoursByPerson[person.name] ?? "2"} onChange={(e) => setHoursByPerson((current) => ({ ...current, [person.name]: e.target.value }))} />hrs</label> : "—"}</TableCell><TableCell role="cell"><span className={`crm-check-status${person.checkedIn ? " is-checked" : ""}`}><i />{person.checkedIn ? "Present" : "Not checked in"}</span></TableCell><TableCell role="cell"><Button size="sm" variant={person.checkedIn ? "muted" : "primary"} onClick={() => onToggle(event.id, person.name, Number(hoursByPerson[person.name] ?? 2))}>{person.checkedIn ? <><Check size={13} />Checked in</> : "Mark present"}</Button></TableCell></TableRow>)}</TableBody></Table></ScrollArea>
-    <footer className="crm-table-footer"><span><b>{event.attendees.length}</b> people signed up</span><span>Hours are recorded when an organizer confirms attendance.</span></footer>
-  </section>;
-}
-
-function VolunteersView({ events }: { events: UmojaEvent[] }) {
-  const people = useMemo(() => {
-    const totals = new Map<string, { initials: string; events: number; hours: number; last: string }>();
-    for (const event of events) for (const attendee of event.attendees) {
-      const old = totals.get(attendee.name) ?? { initials: attendee.initials, events: 0, hours: 0, last: "—" };
-      totals.set(attendee.name, { initials: attendee.initials, events: old.events + Number(attendee.checkedIn), hours: old.hours + (attendee.checkedIn ? attendee.hours : 0), last: attendee.checkedIn ? event.date : old.last });
-    }
-    return [...totals.entries()].map(([name, values]) => ({ name, ...values })).sort((a, b) => b.hours - a.hours);
-  }, [events]);
-  return <section className="crm-workspace-view"><div className="crm-view-toolbar"><div className="crm-filter-row"><span className="crm-inline-stat"><UsersRound size={14} />{people.length} volunteers</span><span className="crm-inline-stat"><Clock3 size={14} />{formatHours(people.reduce((sum, person) => sum + person.hours, 0))} hrs given</span></div><div className="crm-actions"><Button variant="secondary" size="sm"><ArrowDownToLine size={13} />Export</Button></div></div>
-    <ScrollArea orientation="both" className="crm-table-scroll"><Table role="table" className="crm-table crm-table-volunteers grid min-w-max grid-cols-[repeat(5,max-content)] justify-between"><TableHeader role="rowgroup" className="contents"><TableRow role="row" className="crm-table-row"><TableHead role="columnheader">Volunteer</TableHead><TableHead role="columnheader">Events attended</TableHead><TableHead role="columnheader">Hours given</TableHead><TableHead role="columnheader">Last active</TableHead><TableHead role="columnheader">Action</TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="contents">{people.map((person, index) => <TableRow role="row" className="crm-table-row" key={person.name}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">{person.events}</TableCell><TableCell role="cell" className="crm-hours-total">{formatHours(person.hours)} <small>hrs</small></TableCell><TableCell role="cell">{person.last}</TableCell><TableCell role="cell"><Button variant="ghost" size="icon-sm" aria-label={`View ${person.name} profile`}><MoreHorizontal size={14} /></Button></TableCell></TableRow>)}</TableBody></Table></ScrollArea>
-    <footer className="crm-table-footer"><span><b>{people.length}</b> volunteer profiles</span><span><Clock3 size={13} /> <b>{formatHours(people.reduce((sum, person) => sum + person.hours, 0))}</b> total hours recorded</span></footer></section>;
 }
 
 function EventDialog({ event, onClose, onSave, onRsvp }: { event: UmojaEvent | null | "create"; onClose: () => void; onSave: (event: UmojaEvent) => Promise<void>; onRsvp: (eventId: string, fullName: string, email: string) => Promise<{ alreadyJoined: boolean }> }) {
