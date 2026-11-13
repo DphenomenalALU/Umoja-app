@@ -25,7 +25,7 @@ resource "aws_instance" "umoja" {
 
   subnet_id = var.subnet_id
 
-  associate_public_ip_address = true
+  associate_public_ip_address = var.associate_public_ip_address
 
   metadata_options {
     http_tokens = "required"
