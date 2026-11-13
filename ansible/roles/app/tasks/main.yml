@@ -52,7 +52,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ app_dir }}"
     state: present
-    build: always
+    build: policy
     pull: missing
     recreate: auto
     wait: true
