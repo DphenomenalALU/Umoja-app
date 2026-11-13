@@ -1,6 +1,8 @@
 ---
 app_dir: /opt/umoja
 app_port: 3000
+ssh_port: 22
+ansible_port: "{{ ssh_port }}"
 ssh_allowed_cidr: "REPLACE_ME_CURRENT_PUBLIC_IP/32"
 postgres_user: umoja
 postgres_db: umoja

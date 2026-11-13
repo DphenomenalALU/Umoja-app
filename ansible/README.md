@@ -27,14 +27,15 @@ ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
 AWS credentials come from the AWS CLI profile or environment. Set `AWS_PROFILE`
-if the credentials are not in the default profile. `AWS_REGION` selects the
-inventory region; the default is `us-east-1`.
+if the credentials are not in the default profile. Set `AWS_REGION` to the same
+region used by Terraform.
 
 From the repository root, set the Ansible config and SSH key before running the
 commands below:
 
 ```bash
 export ANSIBLE_CONFIG=ansible/ansible.cfg
+export AWS_REGION=us-east-1
 export ANSIBLE_PRIVATE_KEY_FILE="$HOME/.ssh/your-terraform-key.pem"
 ```
 
@@ -94,10 +95,13 @@ ansible-playbook \
 Deploy to the EC2 instance selected by dynamic inventory:
 
 ```bash
+APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
+SSH_PORT="$(terraform -chdir=terraform output -raw ssh_port)"
 ansible-playbook \
   -i ansible/inventory/aws_ec2.yml \
   ansible/site.yml \
-  --ask-vault-pass
+  --ask-vault-pass \
+  --extra-vars "app_port=${APP_PORT} ssh_port=${SSH_PORT}"
 ```
 
 The playbook installs Docker and configures SSH and UFW before deploying the
@@ -105,6 +109,10 @@ app. SSH root login and password authentication are disabled; SSH key access
 is limited to the `ubuntu` account and the configured source IP. The playbook
 waits for `/api/health` to report both the app and database ready, and fails
 with a log-check hint if they do not become healthy.
+
+Compose applies the schema from `backend/migrations` when it creates a new
+PostgreSQL volume. Ansible checks for the schema and applies the same file only
+if it is missing, which covers an existing empty volume.
 
 Run the deploy command a second time. An idempotent run should finish with
 `changed=0` and `failed=0`.
@@ -127,11 +135,13 @@ The playbook checks the health endpoint after deployment. To inspect the
 server manually:
 
 ```bash
-ssh -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<'REMOTE'
+APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
+SSH_PORT="$(terraform -chdir=terraform output -raw ssh_port)"
+ssh -p "$SSH_PORT" -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<REMOTE
 cd /opt/umoja
 docker compose ps
 docker compose logs umoja --tail=100
-curl http://127.0.0.1:3000/api/health
+curl "http://127.0.0.1:${APP_PORT}/api/health"
 sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication|kbdinteractiveauthentication|allowusers'
 sudo ufw status verbose
 REMOTE
@@ -145,3 +155,7 @@ The health response should be:
 
 PostgreSQL stays inside the Compose network; the security group and UFW do not
 open port 5432 to the internet.
+
+The demo host has a public IPv4 address and serves the app over HTTP on
+`app_port` (3000 by default). It has no TLS termination or reverse proxy; add
+HTTPS before using it with real community data.
