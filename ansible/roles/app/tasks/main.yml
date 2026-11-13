@@ -49,32 +49,41 @@
     mode: "0600"
   no_log: true
 
-- name: Start Umoja containers
-  community.docker.docker_compose_v2:
-    project_src: "{{ app_dir }}"
-    state: present
-    build: policy
-    pull: missing
-    recreate: auto
-    wait: true
+- name: Deploy Umoja and initialize its database
+  block:
+    - name: Start Umoja containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        state: present
+        build: policy
+        pull: missing
+        recreate: auto
+        wait: true
 
-- name: Check database schema
-  ansible.builtin.shell:
-    cmd: >-
-      docker compose exec -T postgres
-      psql -U "{{ postgres_user }}" -d "{{ postgres_db }}"
-      -tAc "SELECT to_regclass('public.people');"
-    chdir: "{{ app_dir }}"
-  register: schema_check
-  changed_when: false
+    - name: Check database schema
+      ansible.builtin.shell:
+        cmd: >-
+          docker compose exec -T postgres
+          psql -U "{{ postgres_user }}" -d "{{ postgres_db }}"
+          -tAc "SELECT to_regclass('public.people');"
+        chdir: "{{ app_dir }}"
+      register: schema_check
+      changed_when: false
 
-- name: Apply database schema
-  ansible.builtin.shell:
-    cmd: >-
-      docker compose exec -T postgres
-      psql -v ON_ERROR_STOP=1
-      -U "{{ postgres_user }}"
-      -d "{{ postgres_db }}"
-      < backend/migrations/001_initial_schema.sql
-    chdir: "{{ app_dir }}"
-  when: schema_check.stdout | trim == ""
+    - name: Apply database schema
+      ansible.builtin.shell:
+        cmd: >-
+          docker compose exec -T postgres
+          psql -v ON_ERROR_STOP=1
+          -U "{{ postgres_user }}"
+          -d "{{ postgres_db }}"
+          < backend/migrations/001_initial_schema.sql
+        chdir: "{{ app_dir }}"
+      when: schema_check.stdout | trim == ""
+  rescue:
+    - name: Report the failed deployment step
+      ansible.builtin.fail:
+        msg: >-
+          Task '{{ ansible_failed_task.name }}' failed while deploying Umoja.
+          Check 'docker compose ps' and 'docker compose logs' in {{ app_dir }},
+          fix the reported issue, then rerun the playbook.
