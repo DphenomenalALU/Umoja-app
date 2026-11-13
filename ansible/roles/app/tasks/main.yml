@@ -47,6 +47,7 @@
     owner: root
     group: root
     mode: "0600"
+  no_log: true
 
 - name: Start Umoja containers
   community.docker.docker_compose_v2:

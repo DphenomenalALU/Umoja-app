@@ -1,67 +1,54 @@
-# Umoja Ansible deployment
+# Ansible deployment
 
-This playbook prepares an Ubuntu server and deploys the Umoja Docker Compose
-application. It installs Docker, configures the firewall, copies the app, and
-starts PostgreSQL and Umoja.
+Ansible configures the Ubuntu EC2 instance created by Terraform. It installs
+Docker, applies the host firewall and SSH settings, starts Umoja with Docker
+Compose, and checks that the app and PostgreSQL are healthy.
+
+The playbook uses AWS EC2 dynamic inventory by default. It selects running
+instances tagged `Name=umoja-instance` and `Environment=dev`, matching the
+Terraform configuration. A static inventory is also available for a one-off
+host or a local syntax check.
 
 ## Requirements
 
-Run Ansible from WSL or another Linux system.
+- Python 3
+- AWS CLI credentials with `ec2:DescribeInstances` permission
+- The EC2 SSH key used by Terraform
+- An encrypted Ansible Vault file with the application secrets
 
-- Ansible Core
-- OpenSSH client
-- Docker collections:
+Install the Python and Ansible collection dependencies from the repository
+root:
 
 ```bash
-ansible-galaxy collection install community.general community.docker
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install 'ansible-core>=2.16,<3.0' -r ansible/requirements.txt
+ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
-You also need:
+AWS credentials come from the AWS CLI profile or environment. Set `AWS_PROFILE`
+if the credentials are not in the default profile. `AWS_REGION` selects the
+inventory region; the default is `us-east-1`.
 
-- The EC2 public IP
-- The SSH private key for the EC2 instance
-- The Ubuntu SSH user
-- The current public IP allowed for SSH
-- The Ansible Vault password
-
-## Local files
-
-Copy the example files:
+From the repository root, set the Ansible config and SSH key before running the
+commands below:
 
 ```bash
-cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
+export ANSIBLE_CONFIG=ansible/ansible.cfg
+export ANSIBLE_PRIVATE_KEY_FILE="$HOME/.ssh/your-terraform-key.pem"
+```
+
+## Configure secrets and SSH access
+
+Create the local Vault file and encrypt it:
+
+```bash
 cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
-```
-
-Get the instance address from Terraform:
-
-```bash
-terraform -chdir=terraform output -raw public_ip
-```
-
-Edit `ansible/inventory/hosts.ini` and replace the host placeholder with that
-address. Replace the key path with the path to your private key:
-
-```text
-REPLACE_ME_EC2_PUBLIC_IP
-REPLACE_ME_SSH_KEY_PATH
-```
-
-Edit `ansible/group_vars/all.yml` and replace the SSH source placeholder with
-your current public IP in CIDR notation:
-
-```yaml
-ssh_allowed_cidr: "YOUR_CURRENT_PUBLIC_IP/32"
-```
-
-Create or update the encrypted password file:
-
-```bash
 ansible-vault encrypt ansible/group_vars/vault.yml
 ansible-vault edit ansible/group_vars/vault.yml
 ```
 
-The encrypted file should contain:
+Set these values in the encrypted file:
 
 ```yaml
 vault_postgres_password: "YOUR_DATABASE_PASSWORD"
@@ -69,91 +56,92 @@ vault_organizer_access_code: "YOUR_PRIVATE_CODE_AT_LEAST_12_CHARACTERS"
 vault_session_secret: "YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS"
 ```
 
-Set a private organizer code and a separate random session secret before
-deploying. The app uses them to sign in organizers and protect attendance and
-volunteer details. Use at least 12 characters for the code and generate the
-session secret with `openssl rand -hex 32`. Keep both values in the encrypted
-Vault file.
+Generate the session secret with `openssl rand -hex 32`. Set
+`ssh_allowed_cidr` in `ansible/group_vars/all.yml` to the administrator's
+current public IPv4 address in `/32` notation. The playbook checks these values
+before changing the server.
 
-Do not commit these files:
+Keep the Vault file, local inventory, and private key out of Git. The
+repository ignores `ansible/group_vars/vault.yml`,
+`ansible/inventory/hosts.ini`, and `*.pem` files.
 
-```text
-ansible/inventory/hosts.ini
-ansible/group_vars/vault.yml
-*.pem
-```
+## Check dynamic inventory
 
-## Check the connection
+Terraform tags the instance so the inventory plugin can find it. After the
+instance is running, list the hosts Ansible discovers:
 
 ```bash
-ansible-inventory -i ansible/inventory/hosts.ini --graph
-ansible all -i ansible/inventory/hosts.ini -m ansible.builtin.ping
+ansible-inventory -i ansible/inventory/aws_ec2.yml --graph
 ```
 
-The connection test should return:
-
-```text
-"ping": "pong"
-```
+The output should include the EC2 instance under `umoja`. The AWS credentials
+need permission to describe EC2 instances; they do not need to be saved in the
+repository.
 
 ## Validate and deploy
 
-Run the syntax check:
+Set Ansible's project configuration, then check the playbook syntax. This
+check uses the static example and does not contact AWS:
 
 ```bash
 ansible-playbook \
-  -i ansible/inventory/hosts.ini \
+  -i ansible/inventory/hosts.ini.example \
   ansible/site.yml \
   --syntax-check \
   --ask-vault-pass
 ```
 
-Deploy Umoja:
+Deploy to the EC2 instance selected by dynamic inventory:
 
 ```bash
 ansible-playbook \
-  -i ansible/inventory/hosts.ini \
+  -i ansible/inventory/aws_ec2.yml \
   ansible/site.yml \
   --ask-vault-pass
 ```
 
-Run the same command a second time to check idempotence. The second run
-should make few or no changes and must finish with `failed=0`.
+The playbook installs Docker and configures SSH and UFW before deploying the
+app. SSH root login and password authentication are disabled; SSH key access
+is limited to the `ubuntu` account and the configured source IP. The playbook
+waits for `/api/health` to report both the app and database ready, and fails
+with a log-check hint if they do not become healthy.
+
+Run the deploy command a second time. An idempotent run should finish with
+`changed=0` and `failed=0`.
+
+## Use a static inventory
+
+For a one-off host, copy the example and add its Terraform public IP and SSH key
+path:
+
+```bash
+cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
+```
+
+Then replace the host and key placeholders in `ansible/inventory/hosts.ini` and
+pass it to the same commands with `-i ansible/inventory/hosts.ini`.
 
 ## Verify the server
 
-Connect to the server:
+The playbook checks the health endpoint after deployment. To inspect the
+server manually:
 
 ```bash
-ssh -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP
-```
-
-Check the containers:
-
-```bash
+ssh -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<'REMOTE'
 cd /opt/umoja
 docker compose ps
 docker compose logs umoja --tail=100
-```
-
-Check the health endpoint:
-
-```bash
 curl http://127.0.0.1:3000/api/health
+sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication|kbdinteractiveauthentication|allowusers'
+sudo ufw status verbose
+REMOTE
 ```
 
-Expected response:
+The health response should be:
 
 ```json
 {"status":"healthy","database":"ready"}
 ```
 
-Check the firewall:
-
-```bash
-sudo ufw status verbose
-```
-
-PostgreSQL is kept private because the Compose file does not publish port
-5432. The application is available on port 3000 when the AWS security group
-and UFW allow it.
+PostgreSQL stays inside the Compose network; the security group and UFW do not
+open port 5432 to the internet.
