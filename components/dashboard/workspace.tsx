@@ -7,12 +7,13 @@ import EventsTable from "@/components/dashboard/events-table";
 import EventsToolbar from "@/components/dashboard/events-toolbar";
 import DashboardHeader from "@/components/dashboard/dashboard-header";
 import DashboardSidebar from "@/components/dashboard/dashboard-sidebar";
-import { AttendanceView, VolunteersView } from "@/components/dashboard/attendance-views";
+import { AttendanceView, OrganizerAccess, VolunteersView } from "@/components/dashboard/attendance-views";
 import { initialNotifications } from "@/components/dashboard/notification-data";
 import { initialsColor, KindPill } from "@/components/dashboard/event-visuals";
 import type { Attendee, Kind, UmojaEvent, View } from "@/components/dashboard/types";
 import { createEvent, createSignup, getEvents, isMockDataMode, toDashboardEvent } from "@/lib/events-api";
 import type { CreateEventInput } from "@/lib/events-api";
+import { getOrganizerSession, signInOrganizer, signOutOrganizer } from "@/lib/attendance-api";
 
 type SortOrder = "Soonest first" | "Latest first";
 type TypeFilter = "All types" | Kind;
@@ -160,6 +161,10 @@ export default function DashboardWorkspace() {
   const [eventsLoading, setEventsLoading] = useState(!isMockDataMode);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(initialNotifications);
+  const [organizerAuthorized, setOrganizerAuthorized] = useState(isMockDataMode);
+  const [organizerSessionLoading, setOrganizerSessionLoading] = useState(!isMockDataMode);
+  const [organizerConfigured, setOrganizerConfigured] = useState(isMockDataMode);
+  const [organizerSessionError, setOrganizerSessionError] = useState<string | null>(null);
   const [active, setActive] = useState<View>("Events");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -185,6 +190,32 @@ export default function DashboardWorkspace() {
     void loadEvents();
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    if (isMockDataMode) return;
+    let cancelled = false;
+    void getOrganizerSession().then(
+      (session) => {
+        if (cancelled) return;
+        setOrganizerAuthorized(session.authorized);
+        setOrganizerConfigured(session.configured);
+        setOrganizerSessionError(null);
+      },
+      (error: unknown) => {
+        if (!cancelled) setOrganizerSessionError(error instanceof Error ? error.message : "Could not check organizer access.");
+      },
+    ).finally(() => { if (!cancelled) setOrganizerSessionLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+  const handleOrganizerSignIn = async (accessCode: string) => {
+    setOrganizerSessionError(null);
+    const session = await signInOrganizer(accessCode);
+    setOrganizerAuthorized(session.authorized);
+    setOrganizerConfigured(session.configured);
+  };
+  const handleOrganizerSignOut = async () => {
+    await signOutOrganizer();
+    setOrganizerAuthorized(false);
+  };
   const updateAttendee = (eventId: string, attendeeName: string, updater: (person: Attendee) => Attendee) => setEvents((items) => items.map((event) => event.id !== eventId ? event : { ...event, attendees: event.attendees.map((person) => person.name === attendeeName ? updater(person) : person) }));
   const toggleCheckIn = (eventId: string, attendeeName: string, enteredHours: number) => {
     const event = events.find((item) => item.id === eventId);
@@ -224,5 +255,31 @@ export default function DashboardWorkspace() {
   };
   const selectedEvent = typeof dialog === "object" && dialog !== null ? events.find((event) => event.id === dialog.id) ?? null : dialog;
   const activeEventId = typeof dialog === "object" && dialog !== null ? dialog.id : null;
-  return <main className="crm-app-shell"><DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="crm-main"><DashboardHeader active={active} setActive={setActive} onMenu={() => setSidebarOpen(true)} searchOpen={searchOpen} setSearchOpen={setSearchOpen} events={events} notifications={notifications} isMockDataMode={isMockDataMode} onReadNotification={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead} onSelectNotificationEvent={selectNotificationEvent} />{eventsLoading && <p role="status" className="px-4 py-3">Loading events...</p>}{eventsError && <p role="alert" className="px-4 py-3">Live events unavailable: {eventsError} Showing labeled sample data.</p>}{active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}{active === "Attendance" && <AttendanceView events={events} onToggle={toggleCheckIn} />}{active === "Volunteers" && <VolunteersView events={events} />}<EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} /></div></main>;
+  return (
+    <main className="crm-app-shell">
+      <DashboardSidebar active={active} onNavigate={setActive} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="crm-main">
+        <DashboardHeader
+          active={active}
+          setActive={setActive}
+          onMenu={() => setSidebarOpen(true)}
+          searchOpen={searchOpen}
+          setSearchOpen={setSearchOpen}
+          events={events}
+          notifications={notifications}
+          isMockDataMode={isMockDataMode}
+          onReadNotification={markNotificationRead}
+          onMarkAllNotificationsRead={markAllNotificationsRead}
+          onSelectNotificationEvent={selectNotificationEvent}
+        />
+        {!isMockDataMode && <OrganizerAccess authorized={organizerAuthorized} loading={organizerSessionLoading} configured={organizerConfigured} sessionError={organizerSessionError} onSignIn={handleOrganizerSignIn} onSignOut={handleOrganizerSignOut} />}
+        {eventsLoading && <p role="status" className="px-4 py-3">Loading events...</p>}
+        {eventsError && <p role="alert" className="px-4 py-3">Live events unavailable: {eventsError} Showing labeled sample data.</p>}
+        {active === "Events" && <EventsView events={events} openDetails={setDialog} openCreate={() => setDialog("create")} searchOpen={searchOpen} activeEventId={activeEventId} />}
+        {active === "Attendance" && <AttendanceView key={organizerAuthorized ? "organizer" : "visitor"} events={events} onToggle={toggleCheckIn} organizerAuthorized={organizerAuthorized} organizerSessionLoading={organizerSessionLoading} />}
+        {active === "Volunteers" && <VolunteersView key={organizerAuthorized ? "organizer" : "visitor"} events={events} organizerAuthorized={organizerAuthorized} organizerSessionLoading={organizerSessionLoading} />}
+        <EventDialog event={dialog === "create" ? "create" : selectedEvent} onClose={() => setDialog(null)} onSave={saveEvent} onRsvp={toggleRsvp} />
+      </div>
+    </main>
+  );
 }

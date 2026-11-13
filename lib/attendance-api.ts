@@ -30,12 +30,47 @@ export type VolunteerHistory = {
   history: VolunteerHistoryEntry[];
 };
 
+export type OrganizerSession = {
+  authorized: boolean;
+  configured: boolean;
+};
+
 async function readJson(response: Response) {
   return response.json().catch(() => null) as Promise<Record<string, unknown> | null>;
 }
 
 function errorMessage(body: Record<string, unknown> | null, fallback: string) {
   return typeof body?.error === "string" ? body.error : fallback;
+}
+
+export async function getOrganizerSession(): Promise<OrganizerSession> {
+  const response = await fetch("/api/organizer/session", { cache: "no-store" });
+  const body = await readJson(response);
+  if (!response.ok || typeof body?.authorized !== "boolean" || typeof body.configured !== "boolean") {
+    throw new Error(errorMessage(body, "Could not check organizer access."));
+  }
+  return { authorized: body.authorized, configured: body.configured };
+}
+
+export async function signInOrganizer(accessCode: string): Promise<OrganizerSession> {
+  const response = await fetch("/api/organizer/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessCode }),
+  });
+  const body = await readJson(response);
+  if (!response.ok || body?.authorized !== true) {
+    throw new Error(errorMessage(body, "Could not sign in as an organizer."));
+  }
+  return { authorized: true, configured: true };
+}
+
+export async function signOutOrganizer() {
+  const response = await fetch("/api/organizer/session", { method: "DELETE" });
+  const body = await readJson(response);
+  if (!response.ok || body?.authorized !== false) {
+    throw new Error(errorMessage(body, "Could not sign out."));
+  }
 }
 
 export async function getEventSignups(eventId: string): Promise<EventSignup[]> {

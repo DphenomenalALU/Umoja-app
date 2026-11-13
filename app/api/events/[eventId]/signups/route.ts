@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSignup, listSignups } from "@/backend/src/signups/signup-service";
 import { isApiError } from "@/backend/src/shared/errors";
+import { hasOrganizerSession } from "@/lib/organizer-session";
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   try {
@@ -18,6 +19,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  if (!await hasOrganizerSession()) {
+    return NextResponse.json({ error: "Organizer sign-in is required to view sign-up details." }, { status: 401 });
+  }
   try {
     const { eventId } = await params;
     return NextResponse.json({ signups: await listSignups(eventId) });

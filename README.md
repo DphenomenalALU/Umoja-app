@@ -85,7 +85,7 @@ The tests cover event input validation, sign-up capacity and service behavior, a
    cp .env.example .env.local
    ```
 
-   Replace the sample connection string with the username, password, host, and database used by your local PostgreSQL setup. Keep `.env.local` private; it is ignored by Git.
+   Replace the sample connection string with the username, password, host, and database used by your local PostgreSQL setup. Set a private `UMOJA_ORGANIZER_ACCESS_CODE` (at least 12 characters) and generate `UMOJA_SESSION_SECRET` with `openssl rand -hex 32`. Keep `.env.local` private; it is ignored by Git.
 
 4. Apply the database schema. Adjust the example credentials if your local setup uses different ones:
 
@@ -103,7 +103,7 @@ Open [http://localhost:3000](http://localhost:3000) for the landing page or [htt
 
 ### Run with Docker Compose
 
-Copy the example environment file, then build and start Umoja and PostgreSQL together. Compose reads `.env` for the database credentials. The app uses the `postgres` service hostname inside the network, and PostgreSQL loads the schema automatically when it initializes a new data volume.
+Copy the example environment file, replace the organizer code and session secret, then build and start Umoja and PostgreSQL together. Compose reads `.env` for the database credentials and organizer settings. The app uses the `postgres` service hostname inside the network, and PostgreSQL loads the schema automatically when it initializes a new data volume.
 
 ```bash
 cp .env.example .env
@@ -112,17 +112,23 @@ docker compose up --build
 
 The workspace is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard). Check app and database readiness at [http://localhost:3000/api/health](http://localhost:3000/api/health), or run `docker compose ps` to see both service health states. Stop the stack with `docker compose down`; the database volume remains. To reset the database and have PostgreSQL apply the schema again on the next start, run `docker compose down -v` and then `docker compose up --build`.
 
+Attendance and volunteer details require the organizer code from `.env.local` or `.env`. The app exchanges it for an HTTP-only, signed browser session. This is a shared demo gate; it does not identify individual organizers.
+
 ### Usage
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/events` | List events and active sign-up counts |
 | `GET` | `/api/health` | Check app and PostgreSQL readiness: `200` `{"status":"healthy","database":"ready"}`, or `503` `{"status":"unhealthy","database":"unavailable"}` |
-| `POST` | `/api/events` | Create a meeting or volunteer event |
-| `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance |
+| `POST` | `/api/events` | Create a meeting or volunteer event (organizer session required) |
+| `GET` | `/api/events/:eventId/signups` | List sign-ups and any recorded attendance (organizer session required) |
 | `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
-| `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours |
-| `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history |
+| `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours (organizer session required) |
+| `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history (organizer session required) |
+| `GET`, `POST`, `DELETE` | `/api/organizer/session` | Check organizer access, sign in, or sign out |
+
+Sign-ups, check-in, and volunteer profile routes require an active organizer
+session. Sign in through the Attendance or Volunteers tab in the dashboard.
 
 List events:
 
@@ -138,7 +144,7 @@ curl -X POST http://localhost:3000/api/events \
   -d '{"title":"Community garden day","kind":"volunteer","startsAt":"2030-11-07T08:00:00Z","venue":"Community garden","agenda":"Prepare beds and plant seedlings","capacity":20}'
 ```
 
-Use the returned event `id` to sign up. The response includes a signup `id` that can be used to check in the volunteer:
+Use the returned event `id` to sign up. The response includes a signup `id` that can be used to check in the volunteer. Sign in through the dashboard first; sign-ups, check-in, and profile requests need the organizer session cookie.
 
 ```bash
 curl -X POST http://localhost:3000/api/events/<event-id>/signups \
@@ -150,7 +156,7 @@ curl -X POST http://localhost:3000/api/events/<event-id>/checkin \
   -d '{"signupId":"<signup-id>","volunteerHours":2.5}'
 ```
 
-These routes list sign-ups and volunteer history:
+After signing in through the dashboard, these routes list sign-ups and volunteer history:
 
 ```bash
 curl http://localhost:3000/api/events/<event-id>/signups

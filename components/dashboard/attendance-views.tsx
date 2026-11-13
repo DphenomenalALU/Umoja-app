@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, Check, CheckCheck, Clock3, MoreHorizontal, UsersRound, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { ArrowDownToLine, Check, CheckCheck, Clock3, LockKeyhole, MoreHorizontal, UsersRound, X } from "lucide-react";
 import Button from "@/components/dashboard/crm-button";
 import FilterMenu from "@/components/dashboard/filter-menu";
 import { initialsColor } from "@/components/dashboard/event-visuals";
@@ -24,6 +24,59 @@ type VolunteerRow = {
 
 const EMPTY_SIGNUPS_BY_EVENT: EventSignup[][] = [];
 
+type OrganizerAccessProps = {
+  authorized: boolean;
+  loading: boolean;
+  configured: boolean;
+  sessionError: string | null;
+  onSignIn: (accessCode: string) => Promise<void>;
+  onSignOut: () => Promise<void>;
+};
+
+export function OrganizerAccess({ authorized, loading, configured, sessionError, onSignIn, onSignOut }: OrganizerAccessProps) {
+  const [accessCode, setAccessCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSignIn(accessCode);
+      setAccessCode("");
+    } catch (signInError) {
+      setError(signInError instanceof Error ? signInError.message : "Could not sign in.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const signOut = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSignOut();
+    } catch (signOutError) {
+      setError(signOutError instanceof Error ? signOutError.message : "Could not sign out.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <p className="crm-organizer-access" role="status">Checking organizer access…</p>;
+
+  return <div className="crm-organizer-access">
+    <span className="crm-organizer-access-label"><LockKeyhole size={14} />{authorized ? "Organizer access is on for this browser." : "Organizer sign-in is needed to view volunteer details and record attendance."}</span>
+    {authorized ? <Button variant="secondary" size="sm" disabled={saving} onClick={() => void signOut()}>{saving ? "Signing out…" : "Sign out"}</Button> : configured ? <form className="crm-organizer-signin" onSubmit={(event) => void submit(event)}>
+      <label className="sr-only" htmlFor="organizer-access-code">Organizer access code</label>
+      <input id="organizer-access-code" type="password" autoComplete="current-password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Organizer access code" required />
+      <Button variant="primary" size="sm" type="submit" disabled={saving || !accessCode}>{saving ? "Signing in…" : "Sign in"}</Button>
+    </form> : <span className="crm-organizer-access-error">Organizer access has not been configured on this server.</span>}
+    {(error || sessionError) && <span className="crm-organizer-access-error" role="alert">{error ?? sessionError}</span>}
+  </div>;
+}
+
 function formatHours(value: number) {
   return Number(value.toFixed(2)).toString();
 }
@@ -42,7 +95,7 @@ function toAttendee(signup: EventSignup): Attendee & { signupId: string } {
   };
 }
 
-function AttendanceView({ events, onToggle }: { events: UmojaEvent[]; onToggle: (eventId: string, attendeeName: string, hours: number) => void }) {
+function AttendanceView({ events, onToggle, organizerAuthorized, organizerSessionLoading }: { events: UmojaEvent[]; onToggle: (eventId: string, attendeeName: string, hours: number) => void; organizerAuthorized: boolean; organizerSessionLoading: boolean }) {
   const volunteerEvents = events.filter((event) => event.kind === "Volunteer day");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadedSignups, setLoadedSignups] = useState<{ eventId: string; records?: EventSignup[]; error?: string } | null>(null);
@@ -55,18 +108,18 @@ function AttendanceView({ events, onToggle }: { events: UmojaEvent[]; onToggle: 
   const eventId = event?.id;
 
   useEffect(() => {
-    if (!eventId || isMockDataMode) return;
+    if (!eventId || isMockDataMode || !organizerAuthorized) return;
     let cancelled = false;
     void getEventSignups(eventId).then(
       (records) => { if (!cancelled) setLoadedSignups({ eventId, records }); },
       (loadError: unknown) => { if (!cancelled) setLoadedSignups({ eventId, error: loadError instanceof Error ? loadError.message : "Could not load sign-ups." }); },
     );
     return () => { cancelled = true; };
-  }, [eventId, reloadVersion]);
+  }, [eventId, reloadVersion, organizerAuthorized]);
 
-  const currentSignups = eventId && loadedSignups?.eventId === eventId ? loadedSignups : null;
+  const currentSignups = eventId && organizerAuthorized && loadedSignups?.eventId === eventId ? loadedSignups : null;
   const signups = currentSignups?.records ?? [];
-  const loading = Boolean(eventId && !isMockDataMode && !currentSignups);
+  const loading = Boolean(eventId && !isMockDataMode && (organizerSessionLoading || (organizerAuthorized && !currentSignups)));
   const loadError = currentSignups?.error ?? null;
   const attendees = isMockDataMode ? event?.attendees ?? [] : signups.map(toAttendee);
   if (!event) return <section className="crm-workspace-view" aria-label="Attendance"><p className="crm-empty">Create an event before recording attendance.</p></section>;
@@ -110,8 +163,8 @@ function AttendanceView({ events, onToggle }: { events: UmojaEvent[]; onToggle: 
     <ScrollArea orientation="both" className="crm-table-scroll"><Table role="table" className="crm-table crm-table-attendance grid min-w-max grid-cols-[repeat(5,max-content)] justify-between"><TableHeader role="rowgroup" className="contents"><TableRow role="row" className="crm-table-row"><TableHead role="columnheader">Volunteer</TableHead><TableHead role="columnheader">Sign-up</TableHead><TableHead role="columnheader">Hours given</TableHead><TableHead role="columnheader">Check-in</TableHead><TableHead role="columnheader">Action</TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="contents">{attendees.map((person, index) => {
       const personKey = (person as Attendee & { signupId?: string }).signupId ?? person.name;
       const signupId = (person as Attendee & { signupId?: string }).signupId;
-      return <TableRow role="row" className="crm-table-row" key={signupId ?? person.name}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">Signed up</TableCell><TableCell role="cell">{event.kind === "Volunteer day" ? person.checkedIn ? `${formatHours(person.hours)} hrs` : <label className="crm-hours-input"><input type="number" aria-label={`Hours for ${person.name}`} min="0.25" max="24" step="0.25" value={hoursBySignup[personKey] ?? "2"} onChange={(e) => setHoursBySignup((current) => ({ ...current, [personKey]: e.target.value }))} />hrs</label> : "—"}</TableCell><TableCell role="cell"><span className={`crm-check-status${person.checkedIn ? " is-checked" : ""}`}><i />{person.checkedIn ? "Present" : "Not checked in"}</span></TableCell><TableCell role="cell"><Button size="sm" variant={person.checkedIn ? "muted" : "primary"} disabled={person.checkedIn || loading || savingSignupId !== null} onClick={() => void markPresent({ ...person, signupId })}>{person.checkedIn ? <><Check size={13} />Present</> : savingSignupId === signupId ? "Saving…" : "Mark present"}</Button></TableCell></TableRow>;
-    })}{!loading && !loadError && !error && attendees.length === 0 && <TableRow role="row" className="crm-table-row"><TableCell role="cell" colSpan={5} className="crm-empty">No one has signed up for this event yet.</TableCell></TableRow>}</TableBody></Table></ScrollArea>
+      return <TableRow role="row" className="crm-table-row" key={signupId ?? person.name}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">Signed up</TableCell><TableCell role="cell">{event.kind === "Volunteer day" ? person.checkedIn ? `${formatHours(person.hours)} hrs` : <label className="crm-hours-input"><input type="number" aria-label={`Hours for ${person.name}`} min="0.25" max="24" step="0.25" value={hoursBySignup[personKey] ?? "2"} onChange={(e) => setHoursBySignup((current) => ({ ...current, [personKey]: e.target.value }))} />hrs</label> : "—"}</TableCell><TableCell role="cell"><span className={`crm-check-status${person.checkedIn ? " is-checked" : ""}`}><i />{person.checkedIn ? "Present" : "Not checked in"}</span></TableCell><TableCell role="cell"><Button size="sm" variant={person.checkedIn ? "muted" : "primary"} disabled={person.checkedIn || loading || savingSignupId !== null || (!isMockDataMode && !organizerAuthorized)} onClick={() => void markPresent({ ...person, signupId })}>{person.checkedIn ? <><Check size={13} />Present</> : savingSignupId === signupId ? "Saving…" : "Mark present"}</Button></TableCell></TableRow>;
+    })}{!loading && !loadError && !error && attendees.length === 0 && <TableRow role="row" className="crm-table-row"><TableCell role="cell" colSpan={5} className="crm-empty">{!isMockDataMode && !organizerAuthorized ? "Sign in to view this event’s sign-up list." : "No one has signed up for this event yet."}</TableCell></TableRow>}</TableBody></Table></ScrollArea>
     <footer className="crm-table-footer"><span><b>{attendees.length}</b> people signed up</span><span>Hours are saved when attendance is confirmed.</span></footer>
   </section>;
 }
@@ -147,25 +200,25 @@ function buildLivePeople(events: UmojaEvent[], signupsByEvent: EventSignup[][]):
   return [...totals.values()].sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name));
 }
 
-function VolunteersView({ events }: { events: UmojaEvent[] }) {
+function VolunteersView({ events, organizerAuthorized, organizerSessionLoading }: { events: UmojaEvent[]; organizerAuthorized: boolean; organizerSessionLoading: boolean }) {
   const [loadedEvents, setLoadedEvents] = useState<{ eventIds: string; signupsByEvent?: EventSignup[][]; error?: string } | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [selectedPerson, setSelectedPerson] = useState<VolunteerRow | null>(null);
   const eventIds = events.map((event) => event.id).join(",");
 
   useEffect(() => {
-    if (isMockDataMode || !events.length) return;
+    if (isMockDataMode || !events.length || !organizerAuthorized) return;
     let cancelled = false;
     void Promise.all(events.map((event) => getEventSignups(event.id))).then(
       (signupsByEvent) => { if (!cancelled) setLoadedEvents({ eventIds, signupsByEvent }); },
       (loadError: unknown) => { if (!cancelled) setLoadedEvents({ eventIds, error: loadError instanceof Error ? loadError.message : "Could not load volunteer records." }); },
     );
     return () => { cancelled = true; };
-  }, [events, eventIds, reloadVersion]);
+  }, [events, eventIds, reloadVersion, organizerAuthorized]);
 
-  const currentEvents = loadedEvents?.eventIds === eventIds ? loadedEvents : null;
+  const currentEvents = organizerAuthorized && loadedEvents?.eventIds === eventIds ? loadedEvents : null;
   const signupsByEvent = currentEvents?.signupsByEvent ?? EMPTY_SIGNUPS_BY_EVENT;
-  const loading = !isMockDataMode && events.length > 0 && !currentEvents;
+  const loading = !isMockDataMode && (organizerSessionLoading || (organizerAuthorized && events.length > 0 && !currentEvents));
   const error = currentEvents?.error ?? null;
   const people = useMemo(() => isMockDataMode ? buildMockPeople(events) : buildLivePeople(events, signupsByEvent), [events, signupsByEvent]);
   const totalHours = people.reduce((sum, person) => sum + person.hours, 0);
@@ -176,7 +229,7 @@ function VolunteersView({ events }: { events: UmojaEvent[] }) {
     {loading && <p role="status" className="px-4 py-3">Loading volunteer records…</p>}
     {error && <p role="alert" className="px-4 py-3">Could not load volunteer records: {error}</p>}
     {error && <div className="px-4"><Button variant="secondary" size="sm" onClick={() => { setLoadedEvents(null); setReloadVersion((version) => version + 1); }}>Try again</Button></div>}
-    <ScrollArea orientation="both" className="crm-table-scroll"><Table role="table" className="crm-table crm-table-volunteers grid min-w-max grid-cols-[repeat(5,max-content)] justify-between"><TableHeader role="rowgroup" className="contents"><TableRow role="row" className="crm-table-row"><TableHead role="columnheader">Volunteer</TableHead><TableHead role="columnheader">Events attended</TableHead><TableHead role="columnheader">Hours given</TableHead><TableHead role="columnheader">Last active</TableHead><TableHead role="columnheader">Action</TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="contents">{people.map((person, index) => <TableRow role="row" className="crm-table-row" key={person.id}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">{person.events}</TableCell><TableCell role="cell" className="crm-hours-total">{formatHours(person.hours)} <small>hrs</small></TableCell><TableCell role="cell">{person.last}</TableCell><TableCell role="cell"><Button variant="ghost" size="icon-sm" aria-label={`View ${person.name} profile`} onClick={() => setSelectedPerson(person)}><MoreHorizontal size={14} /></Button></TableCell></TableRow>)}{!loading && !error && people.length === 0 && <TableRow role="row" className="crm-table-row"><TableCell role="cell" colSpan={5} className="crm-empty">Volunteer records will appear after people sign up.</TableCell></TableRow>}</TableBody></Table></ScrollArea>
+    <ScrollArea orientation="both" className="crm-table-scroll"><Table role="table" className="crm-table crm-table-volunteers grid min-w-max grid-cols-[repeat(5,max-content)] justify-between"><TableHeader role="rowgroup" className="contents"><TableRow role="row" className="crm-table-row"><TableHead role="columnheader">Volunteer</TableHead><TableHead role="columnheader">Events attended</TableHead><TableHead role="columnheader">Hours given</TableHead><TableHead role="columnheader">Last active</TableHead><TableHead role="columnheader">Action</TableHead></TableRow></TableHeader><TableBody role="rowgroup" className="contents">{people.map((person, index) => <TableRow role="row" className="crm-table-row" key={person.id}><TableCell role="cell"><span className="crm-volunteer-cell"><i className={`person-avatar ${initialsColor(index)}`}>{person.initials}</i><b>{person.name}</b></span></TableCell><TableCell role="cell">{person.events}</TableCell><TableCell role="cell" className="crm-hours-total">{formatHours(person.hours)} <small>hrs</small></TableCell><TableCell role="cell">{person.last}</TableCell><TableCell role="cell"><Button variant="ghost" size="icon-sm" aria-label={`View ${person.name} profile`} onClick={() => setSelectedPerson(person)}><MoreHorizontal size={14} /></Button></TableCell></TableRow>)}{!loading && !error && people.length === 0 && <TableRow role="row" className="crm-table-row"><TableCell role="cell" colSpan={5} className="crm-empty">{!isMockDataMode && !organizerAuthorized ? "Sign in to view volunteer records." : "Volunteer records will appear after people sign up."}</TableCell></TableRow>}</TableBody></Table></ScrollArea>
     <footer className="crm-table-footer"><span><b>{people.length}</b> volunteer profiles</span><span><Clock3 size={13} /> <b>{formatHours(totalHours)}</b> total hours recorded</span></footer>
     <VolunteerProfileDialog person={selectedPerson} events={events} onClose={closeProfile} />
   </section>;
@@ -202,13 +255,14 @@ function VolunteerProfileDialog({ person, events, onClose }: { person: Volunteer
     totalHours?: number;
     error?: string;
   } | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (person && dialog && !dialog.open) dialog.showModal();
     if (!person && dialog?.open) dialog.close();
     return () => { if (dialog?.open) dialog.close(); };
-  }, [person]);
+  }, [person, reloadVersion]);
 
   useEffect(() => {
     if (!person || isMockDataMode) return;
@@ -243,6 +297,7 @@ function VolunteerProfileDialog({ person, events, onClose }: { person: Volunteer
     <div className="detail-dialog-content">
       {loading && <p role="status">Loading attendance history…</p>}
       {error && <p role="alert">{error}</p>}
+      {error && <Button variant="secondary" size="sm" onClick={() => { setLoadedProfile(null); setReloadVersion((version) => version + 1); }}>Try again</Button>}
       {!loading && !error && <>
         <div className="detail-meta"><span><UsersRound size={15} />{eventsAttended} events attended</span><span><Clock3 size={15} />{formatHours(totalHours)} hours given</span></div>
         <div className="detail-signups"><div><b>Attendance history</b><span>{history.length} events</span></div>{history.length ? history.map((entry) => <div className="detail-person" key={`${entry.id}-${entry.checked_in_at}`}><span><b>{entry.title}</b><small>{formatHistoryDate(entry.checked_in_at)} · {entry.kind === "volunteer" ? `${formatHours(Number(entry.volunteer_hours))} hours` : "Meeting"}</small></span><Check size={14} className="detail-check" /></div>) : <p className="no-signups">No attended events recorded yet.</p>}</div>

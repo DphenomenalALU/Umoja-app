@@ -65,7 +65,15 @@ The encrypted file should contain:
 
 ```yaml
 vault_postgres_password: "YOUR_DATABASE_PASSWORD"
+vault_organizer_access_code: "YOUR_PRIVATE_CODE_AT_LEAST_12_CHARACTERS"
+vault_session_secret: "YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS"
 ```
+
+Set a private organizer code and a separate random session secret before
+deploying. The app uses them to sign in organizers and protect attendance and
+volunteer details. Use at least 12 characters for the code and generate the
+session secret with `openssl rand -hex 32`. Keep both values in the encrypted
+Vault file.
 
 Do not commit these files:
 

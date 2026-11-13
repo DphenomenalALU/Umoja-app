@@ -1,2 +1,4 @@
 ---
 vault_postgres_password: "REPLACE_ME_POSTGRES_PASSWORD"
+vault_organizer_access_code: "REPLACE_ME_PRIVATE_CODE_AT_LEAST_12_CHARACTERS"
+vault_session_secret: "REPLACE_ME_RANDOM_SECRET_AT_LEAST_32_CHARACTERS"
