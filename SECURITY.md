@@ -81,8 +81,12 @@ Trivy scans the image after it is built and before it is published. The image is
 The Next.js standalone app files copied into the image (26 packages) had 0 findings.
 
 CI also pulls and scans `postgres:17`, the database image used by Compose. The
-report and HIGH/CRITICAL gate run on every pull request; review the scan output
-in that pull request's workflow run for the current findings.
+first scan found one HIGH secret result at
+`/etc/ssl/private/ssl-cert-snakeoil.key`. The matching certificate identifies
+it as a self-signed `CN=localhost` test certificate from the base image, not an
+application credential. The workflow skips only this file; vulnerability and
+secret scanning continue for the rest of the image. The report and HIGH/CRITICAL
+gate run on every pull request.
 
 ## Fixes made
 

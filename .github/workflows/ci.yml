@@ -101,6 +101,7 @@ jobs:
         with:
           version: v0.76.2
           image-ref: postgres:17
+          skip-files: /etc/ssl/private/ssl-cert-snakeoil.key
           format: table
           exit-code: "0"
 
@@ -110,6 +111,7 @@ jobs:
           version: v0.76.2
           skip-setup-trivy: true
           image-ref: postgres:17
+          skip-files: /etc/ssl/private/ssl-cert-snakeoil.key
           format: table
           severity: HIGH,CRITICAL
           exit-code: "1"
