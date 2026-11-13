@@ -58,6 +58,23 @@ jobs:
       - name: Jest tests
         run: npm test
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible dependencies
+        run: |
+          python -m pip install 'ansible-core>=2.16,<3.0' -r ansible/requirements.txt
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Check Ansible playbook syntax
+        run: |
+          cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
+          ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
+            -i ansible/inventory/hosts.ini.example \
+            ansible/site.yml --syntax-check
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

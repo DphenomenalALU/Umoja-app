@@ -92,6 +92,9 @@ ansible-playbook \
   --ask-vault-pass
 ```
 
+CI also runs this syntax check with the example Vault values and static
+inventory. It does not contact AWS.
+
 Deploy to the EC2 instance selected by dynamic inventory:
 
 ```bash
@@ -107,7 +110,9 @@ The playbook installs Docker and configures SSH and UFW before deploying the
 app. SSH root login and password authentication are disabled; SSH key access
 is limited to the `ubuntu` account and the configured source IP. The playbook
 waits for `/api/health` to report both the app and database ready, and fails
-with a log-check hint if they do not become healthy.
+with a log-check hint if they do not become healthy. If container startup or
+schema setup fails, Ansible names the failed task and points to the Compose
+status and logs for diagnosis.
 
 Compose applies the schema from `backend/migrations` when it creates a new
 PostgreSQL volume. Ansible checks for the schema and applies the same file only
