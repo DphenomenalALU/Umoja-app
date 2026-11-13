@@ -1,0 +1,6 @@
+---
+app_dir: /opt/umoja
+app_port: 3000
+ssh_allowed_cidr: "102.22.143.187/32"
+postgres_user: umoja
+postgres_db: umoja

@@ -1,0 +1,27 @@
+---
+- name: Block incoming traffic by default
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Allow outgoing traffic
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow SSH from my IP
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    from_ip: "{{ ssh_allowed_cidr }}"
+
+- name: Allow Umoja port
+  community.general.ufw:
+    rule: allow
+    port: "{{ app_port }}"
+    proto: tcp
+
+- name: Turn on firewall
+  community.general.ufw:
+    state: enabled
