@@ -1,5 +1,9 @@
 import { POST } from "./route";
 
+jest.mock("@/lib/organizer-session", () => ({
+  hasOrganizerSession: jest.fn().mockResolvedValue(true),
+}));
+
 describe("Events API Contract", () => {
   it("requires a title", async () => {
     const request = new Request("http://localhost/api/events", {

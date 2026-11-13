@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { checkInSignup } from "@/backend/src/checkin/checkin-service";
 import { isApiError } from "@/backend/src/shared/errors";
+import { hasOrganizerSession } from "@/lib/organizer-session";
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  if (!await hasOrganizerSession()) {
+    return NextResponse.json({ error: "Organizer sign-in is required to record attendance." }, { status: 401 });
+  }
   try {
     const body = await request.json().catch(() => null) as { signupId?: unknown; volunteerHours?: unknown } | null;
     if (!body || typeof body.signupId !== "string" || typeof body.volunteerHours !== "number") {
