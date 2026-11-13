@@ -1,333 +1,82 @@
-### Umoja Infrastructure with Terraform
+# Terraform infrastructure
 
-## Overview
+This configuration provisions the AWS network and EC2 host used to run Umoja.
+It keeps the VPC, subnet, security group, and instance in separate modules.
 
-This directory contains the Infrastructure as Code (IaC) configuration used to provision the AWS resources required to host Umoja.
+## Resources
 
-Umoja is a community engagement platform that supports community meetings, volunteer events, RSVPs, attendance tracking and volunteer service-hour reporting. Rather than manually creating cloud infrastructure through the AWS Console, Terraform is used to define infrastructure in code so that deployments can be reproduced consistently by any user.
-
-The configuration provisions:
-
-- A dedicated VPC
-- A public subnet with an internet gateway and route
-- Network security rules
+- A VPC and public subnet with an internet gateway and route
+- A security group that allows the app on port 3000 and restricts SSH to a configured CIDR
 - An Ubuntu 24.04 EC2 instance
-- Reusable outputs for deployment and troubleshooting
+- Outputs for the instance ID, public IP, VPC, subnet, and security group
 
-The implementation follows a modular structure to improve readability, reuse and maintenance.
+PostgreSQL runs in the application’s Docker Compose network. The security group
+does not expose port 5432.
 
-# Architecture
+## Requirements
 
-The infrastructure is divided into three modules:
+- Terraform 1.5 or later
+- AWS CLI credentials with permission to manage the listed resources
+- An EC2 key pair that exists in the selected AWS region
 
-## Networking Module
+Terraform reads AWS credentials from the AWS CLI profile or environment. Do not
+put credentials or a private key in Terraform files.
 
-Creates:
+## Configure
 
-- VPC
-- Public subnet
+From the repository root, copy the example variables file:
 
-Responsibilities:
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+```
 
-- Defines network boundaries.
-- Allocates address ranges.
-- Provides networking outputs to dependent modules.
+Edit `terraform/terraform.tfvars` and set `ssh_cidr` to the administrator’s
+current public IP in `/32` notation and `key_name` to an EC2 key pair in the
+selected region. The example IP is reserved for documentation and will not
+allow a real SSH connection. The local `terraform.tfvars` file is ignored by
+Git.
 
----
+## Plan and apply
 
-## Security Module
+Run these commands from the repository root:
 
-Creates:
+```bash
+terraform -chdir=terraform init
+terraform -chdir=terraform fmt -check -recursive
+terraform -chdir=terraform validate
+terraform -chdir=terraform plan
+```
 
-- Security Group
+Review the plan before applying it. `apply` creates billable AWS resources, so
+confirm the account, region, and resource list first:
 
-Responsibilities:
+```bash
+terraform -chdir=terraform apply
+```
 
-- Allows HTTP access to Umoja.
-- Allows SSH access for administrators.
-- Uses a configurable CIDR block for SSH access.
-- Prevents insecure hardcoded access policies.
+The command asks for confirmation before making changes.
 
-## Compute Module
+## Connect the deployment
 
-Creates:
+After applying, get the public IP for the Ansible inventory:
 
-- Ubuntu 24.04 EC2 Instance
+```bash
+terraform -chdir=terraform output -raw public_ip
+```
 
-Responsibilities:
+Other outputs are available with:
 
-- Hosts Umoja.
-- Uses a configurable instance type.
-- Receives networking and security configuration from other modules.
-- Outputs deployment information such as the public IP address.
+```bash
+terraform -chdir=terraform output
+```
 
----
+## Clean up
 
-# Directory Structure
+When the host is no longer needed, review the resources Terraform will remove:
 
-terraform/
+```bash
+terraform -chdir=terraform destroy
+```
 
-│
-
-├── versions.tf
-
-├── variables.tf
-
-├── outputs.tf
-
-├── main.tf
-
-├── README.md
-
-│
-
-└── modules/
-
-    ├── networking/
-
-    │   ├── main.tf
-
-    │   ├── variables.tf
-
-    │   └── outputs.tf
-
-    │
-
-    ├── security/
-
-    │   ├── main.tf
-
-    │   ├── variables.tf
-
-    │   └── outputs.tf
-
-    │
-
-    └── compute/
-
-        ├── main.tf
-
-        ├── variables.tf
-
-        └── outputs.tf
-
----
-
-# Configuration Variables
-
-## Required Variables
-
-| Variable | Purpose |
-| --- | --- |
-| aws\region | AWS deployment region |
-| environment | Deployment environment name |
-| instance_type | EC2 instance size |
-| vpc_cidr | VPC address space |
-| public_subnet_cidr | Public subnet range |
-| ssh_cidr | Allowed SSH source range |
-| key_name | AWS EC2 Key Pair name |
-
----
-
-## Example Configuration
-
-Create a local Terraform variables file:
-
-aws_region         = "af-south-1"
-
-environment        = "dev"
-
-instance_type      = "t3.micro"
-
-vpc_cidr           = "10.0.0.0/16"
-
-public_subnet_cidr = "10.0.1.0/24"
-
-ssh_cidr           = "198.51.100.10/32"
-
-key_name           = "umoja-key"
-
-This file should not contain secrets and should not be committed with specific values needed in production.
-
----
-
-# Security Considerations
-
-Several security measures were intentionally applied during design.
-
-## No Hardcoded Secrets
-
-AWS credentials are never stored in:
-
-- Terraform code
-- Source control
-- Output files
-
-Terraform retrieves credentials from the local AWS CLI configuration.
-
----
-
-## SSH Access Control
-
-SSH access is configurable through:
-
-ssh_cidr
-
-Replace this example with the public IP address of the administrator running SSH.
-
-Example:
-
-ssh_cidr = "198.51.100.10/32"
-
----
-
-## Least Privilege Principle
-
-Terraform should be executed using a dedicated IAM user or role with only the permissions required to provision Umoja infrastructure.
-
-Administrative credentials should not be used during normal operation.
-
----
-
-## Private Database Access
-
-PostgreSQL is intentionally not exposed to the public internet.
-
-Database access should only occur through trusted application components or private networking configurations.
-
----
-
-# Terraform Workflow
-
-## 1. Initialize Terraform
-
-Run:
-
-terraform init
-
-Purpose:
-
-- Downloads required providers, initializes modules and prepares the working directory.
-
-Expected result:
-
-Terraform has been successfully initialized!
-
-## 2. Format Configuration
-
-Run:
-
-terraform fmt -recursive
-
-Purpose:
-
-- Applies standard Terraform formatting and keeps the codebase consistent.
-
-## 3. Validate Configuration
-
-Run:
-
-terraform validate
-
-Purpose:
-
-- Detects syntax errors, verifies module structure and checks variable references.
-
-Expected result:
-
-Success! The configuration is valid.
-
-## 4. Review Planned Changes
-
-Run:
-
-terraform plan
-
-Purpose:
-
-- Displays resources that Terraform intends to create.
-- Allows infrastructure review before deployment.
-- Verifies no unexpected resources will be created.
-
-Typical resources:
-
-- VPC
-- Subnet
-- Security Group
-- EC2 Instance
-
-## 5. Apply Infrastructure
-
-Only perform this step after:
-
-- AWS account access has been confirmed and team approval has been received.
-
-Deployment command:
-
-terraform apply
-
-Terraform will present a final execution plan before creating resources.
-
-## 6. View Outputs
-
-After deployment:
-
-terraform output
-
-Example:
-
-instance_id = "i-xxxxxxxx"
-
-public_ip = "13.xxx.xxx.xxx"
-
-security_group_id = "sg-xxxxxxxx"
-
-subnet_id = "subnet-xxxxxxxx"
-
-vpc_id = "vpc-xxxxxxxx"
-
----
-
-## Public IP for Deployment
-
-The most important deployment output is:
-
-public_ip
-
-This value is provided to deployment and automation contributors so that configuration management and application deployment tools can connect to the server.
-
-Example retrieval:
-
-terraform output public_ip
-
----
-
-# Cleanup
-
-To remove all provisioned resources:
-
-terraform destroy
-
-Terraform will display all resources scheduled for removal before execution.
-
-Use this command when:
-
-- Testing is complete and resources are no longer required.
-
----
-
-# Known Limitations
-
-Current scope is intentionally limited to support MVP deployment.
-
-Current implementation:
-
-- Single EC2 instance.
-- No load balancer.
-- No auto-scaling.
-- No managed PostgreSQL service.
-- No disaster recovery strategy.
-- No multi-region deployment.
-
----
-
+The deployment uses one EC2 instance. It has no load balancer, autoscaling, or
+managed PostgreSQL service.
