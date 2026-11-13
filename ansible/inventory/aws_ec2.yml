@@ -1,0 +1,18 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+filters:
+  instance-state-name: running
+  tag:Name: umoja-instance
+  tag:Environment: dev
+strict: true
+hostnames:
+  - instance-id
+compose:
+  ansible_host: public_ip_address | default(private_ip_address, true)
+groups:
+  umoja: ec2_tags.Name == 'umoja-instance' and ec2_tags.Environment == 'dev'
+keyed_groups:
+  - key: ec2_tags.Environment
+    prefix: environment
+    separator: _

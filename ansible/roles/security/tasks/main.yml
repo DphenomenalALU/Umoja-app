@@ -16,6 +16,27 @@
     proto: tcp
     from_ip: "{{ ssh_allowed_cidr }}"
 
+- name: Harden SSH server settings
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-umoja-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitEmptyPasswords no
+      PubkeyAuthentication yes
+      X11Forwarding no
+      AllowTcpForwarding no
+      AllowAgentForwarding no
+      MaxAuthTries 3
+      LoginGraceTime 30
+      AllowUsers ubuntu
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart SSH
+
 - name: Allow Umoja port
   community.general.ufw:
     rule: allow
