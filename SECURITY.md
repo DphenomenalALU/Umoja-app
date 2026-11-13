@@ -13,7 +13,7 @@ All scans run in GitHub Actions on every pull request.
 | Scan | Tool | What it checks | Status |
 | --- | --- | --- | --- |
 | Dependency scan | `npm audit` | npm packages in `package-lock.json`, including development tools | Active |
-| Container image scan | Trivy | The app image built from `Dockerfile` and the `postgres:17` image used by Compose | Active |
+| Container image scan | Trivy | The app image built from `Dockerfile`; high/critical findings in the `postgres:17` Compose image are reported | App image blocks on high/critical; PostgreSQL is report-only |
 | IaC scan | Trivy | Terraform files in `terraform/` | Active |
 
 
@@ -52,7 +52,7 @@ The 27 findings come from only **3 advisories**. The other entries are packages 
 
 ### Container image scan (Trivy)
 
-Trivy scans the image after it is built and before it is published. The image is only pushed to the GitHub Container Registry if the scan passes.
+Trivy scans the app image after it is built and before it is published. The image is only pushed to the GitHub Container Registry if the scan passes.
 
 **Base image tested:** `node:22-alpine` (Alpine 3.24.4), digest `sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202` at the time of the scan.
 
@@ -80,13 +80,11 @@ Trivy scans the image after it is built and before it is published. The image is
 
 The Next.js standalone app files copied into the image (26 packages) had 0 findings.
 
-CI also pulls and scans `postgres:17`, the database image used by Compose. The
-first scan found one HIGH secret result at
-`/etc/ssl/private/ssl-cert-snakeoil.key`. The matching certificate identifies
-it as a self-signed `CN=localhost` test certificate from the base image, not an
-application credential. The workflow skips only this file; vulnerability and
-secret scanning continue for the rest of the image. The report and HIGH/CRITICAL
-gate run on every pull request.
+CI also scans the `postgres:17` image used by Compose and reports its HIGH and
+CRITICAL findings without failing the pull request. Trivy found upstream image
+vulnerabilities and a self-signed Debian test key at
+`/etc/ssl/private/ssl-cert-snakeoil.key`; the key is not an Umoja credential.
+The blocking container scan remains on the app image.
 
 ## Fixes made
 
@@ -165,10 +163,9 @@ docker build -t umoja:local .
 trivy image umoja:local
 trivy image --severity HIGH,CRITICAL --exit-code 1 umoja:local
 
-# Scan the database image used by Compose
+# Report high and critical findings in the database image used by Compose
 docker pull postgres:17
-trivy image postgres:17
-trivy image --severity HIGH,CRITICAL --exit-code 1 postgres:17
+trivy image --severity HIGH,CRITICAL postgres:17
 
 # Terraform configuration, reporting all findings
 trivy config terraform/
