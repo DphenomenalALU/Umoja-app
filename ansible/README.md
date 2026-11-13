@@ -6,7 +6,7 @@ starts PostgreSQL and Umoja.
 
 ## Requirements
 
-Run Ansible from WSLr another Linux system.
+Run Ansible from WSL or another Linux system.
 
 - Ansible Core
 - OpenSSH client
@@ -33,14 +33,22 @@ cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
 cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
 ```
 
-Edit `ansible/inventory/hosts.ini` and replace:
+Get the instance address from Terraform:
+
+```bash
+terraform -chdir=terraform output -raw public_ip
+```
+
+Edit `ansible/inventory/hosts.ini` and replace the host placeholder with that
+address. Replace the key path with the path to your private key:
 
 ```text
 REPLACE_ME_EC2_PUBLIC_IP
 REPLACE_ME_SSH_KEY_PATH
 ```
 
-Edit `ansible/group_vars/all.yml` and set:
+Edit `ansible/group_vars/all.yml` and replace the SSH source placeholder with
+your current public IP in CIDR notation:
 
 ```yaml
 ssh_allowed_cidr: "YOUR_CURRENT_PUBLIC_IP/32"
