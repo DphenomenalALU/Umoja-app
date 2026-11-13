@@ -1,0 +1,2 @@
+# Review by 2026-12-10: the demo instance needs outbound web access; Terraform limits it to ports 80 and 443.
+AWS-0104

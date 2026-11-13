@@ -1,0 +1,55 @@
+---
+- name: Set up Umoja server
+  hosts: umoja
+  become: true
+  gather_facts: true
+  vars_files:
+    - group_vars/vault.yml
+  pre_tasks:
+    - name: Check deployment settings before changing the host
+      ansible.builtin.assert:
+        that:
+          - ssh_allowed_cidr is string
+          - ssh_allowed_cidr.endswith('/32')
+          - "'REPLACE_ME' not in ssh_allowed_cidr"
+          - vault_postgres_password is string
+          - vault_postgres_password | length > 0
+          - "'REPLACE_ME' not in vault_postgres_password"
+          - vault_organizer_access_code | length >= 12
+          - "'REPLACE_ME' not in vault_organizer_access_code"
+          - vault_session_secret | length >= 32
+          - "'REPLACE_ME' not in vault_session_secret"
+        fail_msg: >-
+          Set the SSH CIDR and real database, organizer, and session secrets
+          in the local Ansible variable files before deploying.
+  roles:
+    - base
+    - docker
+    - security
+    - app
+  post_tasks:
+    - name: Wait for Umoja and PostgreSQL to report healthy
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_port }}/api/health"
+        method: GET
+        status_code: [200, 503]
+        return_content: true
+      register: app_health
+      retries: 10
+      delay: 3
+      until: >-
+        (app_health.status | default(0)) == 200 and
+        (app_health.json | default({})).get('status', '') == 'healthy' and
+        (app_health.json | default({})).get('database', '') == 'ready'
+      failed_when: false
+      changed_when: false
+
+    - name: Confirm the application and database are ready
+      ansible.builtin.assert:
+        that:
+          - (app_health.status | default(0)) == 200
+          - (app_health.json | default({})).get('status', '') == 'healthy'
+          - (app_health.json | default({})).get('database', '') == 'ready'
+        fail_msg: >-
+          Umoja did not become healthy. Check the app and PostgreSQL container
+          logs on the server before retrying the playbook.

@@ -7,6 +7,8 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      UMOJA_ORGANIZER_ACCESS_CODE: ${UMOJA_ORGANIZER_ACCESS_CODE:-}
+      UMOJA_SESSION_SECRET: ${UMOJA_SESSION_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

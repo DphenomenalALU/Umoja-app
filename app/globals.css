@@ -1029,6 +1029,15 @@ body { font-family: var(--font-geist), "Helvetica Neue", Arial, sans-serif; }
 .crm-mobile-menu { display: none !important; }
 .crm-workspace-view { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .crm-view-toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px; }
+.crm-organizer-access { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 14px; border-bottom: 1px solid var(--line); background: color-mix(in oklab, var(--secondary) 58%, transparent); padding: 10px 16px; }
+.crm-organizer-access-label { display: inline-flex; align-items: center; gap: 7px; color: var(--muted-ink); font-size: 11px; }
+.crm-organizer-access-label svg { flex: 0 0 auto; color: var(--forest); }
+.crm-organizer-signin { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-left: auto; }
+.crm-organizer-signin input { width: 220px; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-bright); padding: 0 9px; color: var(--ink); font: inherit; font-size: 11px; }
+.crm-organizer-signin input:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+.crm-organizer-access-error { color: #9a4f3c; font-size: 11px; }
+.crm-organizer-access [data-slot="button"][data-variant="secondary"] { border: 1px solid var(--line); background: var(--secondary); color: var(--secondary-foreground); }
+.crm-organizer-access [data-slot="button"][data-variant="primary"] { border: 1px solid var(--forest-dark); background: var(--primary); color: var(--primary-foreground); }
 .crm-filter-row,.crm-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px; }
 /* Use the CRM's compact filter sheet at phone widths instead of wrapping every filter. */
 .crm-mobile-filter-row { display: none; }

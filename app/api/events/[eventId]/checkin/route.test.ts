@@ -2,6 +2,10 @@ import { checkInSignup } from "@/backend/src/checkin/checkin-service";
 import { ApiError } from "@/backend/src/shared/errors";
 import { POST } from "./route";
 
+jest.mock("@/lib/organizer-session", () => ({
+  hasOrganizerSession: jest.fn().mockResolvedValue(true),
+}));
+
 // Replace the database-backed service so these tests never reach PostgreSQL.
 jest.mock("@/backend/src/checkin/checkin-service", () => ({
   checkInSignup: jest.fn(),

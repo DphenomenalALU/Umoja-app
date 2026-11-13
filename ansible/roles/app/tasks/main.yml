@@ -1,0 +1,80 @@
+---
+- name: Create Umoja folder
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy app folders
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}/"
+    dest: "{{ app_dir }}/{{ item }}/"
+    owner: root
+    group: root
+    mode: preserve
+  loop:
+    - app
+    - backend
+    - components
+    - lib
+    - public
+
+- name: Copy app files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}"
+    dest: "{{ app_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - .dockerignore
+    - Dockerfile
+    - docker-compose.yml
+    - eslint.config.mjs
+    - jest.config.cjs
+    - next.config.ts
+    - package.json
+    - package-lock.json
+    - tsconfig.json
+    - tsconfig.jest.json
+
+- name: Create app environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Start Umoja containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    state: present
+    build: policy
+    pull: missing
+    recreate: auto
+    wait: true
+
+- name: Check database schema
+  ansible.builtin.shell:
+    cmd: >-
+      docker compose exec -T postgres
+      psql -U "{{ postgres_user }}" -d "{{ postgres_db }}"
+      -tAc "SELECT to_regclass('public.people');"
+    chdir: "{{ app_dir }}"
+  register: schema_check
+  changed_when: false
+
+- name: Apply database schema
+  ansible.builtin.shell:
+    cmd: >-
+      docker compose exec -T postgres
+      psql -v ON_ERROR_STOP=1
+      -U "{{ postgres_user }}"
+      -d "{{ postgres_db }}"
+      < backend/migrations/001_initial_schema.sql
+    chdir: "{{ app_dir }}"
+  when: schema_check.stdout | trim == ""
