@@ -69,17 +69,6 @@ variable "app_port" {
   }
 }
 
-variable "ssh_port" {
-  description = "SSH port on the EC2 host"
-  type        = number
-  default     = 22
-
-  validation {
-    condition     = var.ssh_port >= 1 && var.ssh_port <= 65535
-    error_message = "ssh_port must be between 1 and 65535."
-  }
-}
-
 variable "web_egress_ports" {
   description = "Outbound TCP ports used for package and image downloads"
   type        = map(number)

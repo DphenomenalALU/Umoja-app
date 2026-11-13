@@ -6,10 +6,6 @@ variable "ssh_cidr" {
   type = string
 }
 
-variable "ssh_port" {
-  type = number
-}
-
 variable "app_port" {
   type = number
 }

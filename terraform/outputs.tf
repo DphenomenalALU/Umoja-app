@@ -21,7 +21,3 @@ output "public_ip" {
 output "app_port" {
   value = var.app_port
 }
-
-output "ssh_port" {
-  value = var.ssh_port
-}

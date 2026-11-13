@@ -15,7 +15,6 @@ module "security" {
 
   vpc_id             = module.networking.vpc_id
   ssh_cidr           = var.ssh_cidr
-  ssh_port           = var.ssh_port
   app_port           = var.app_port
   app_cidr_blocks    = var.app_cidr_blocks
   web_egress_ports   = var.web_egress_ports

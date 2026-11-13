@@ -96,12 +96,11 @@ Deploy to the EC2 instance selected by dynamic inventory:
 
 ```bash
 APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
-SSH_PORT="$(terraform -chdir=terraform output -raw ssh_port)"
 ansible-playbook \
   -i ansible/inventory/aws_ec2.yml \
   ansible/site.yml \
   --ask-vault-pass \
-  --extra-vars "app_port=${APP_PORT} ssh_port=${SSH_PORT}"
+  --extra-vars "app_port=${APP_PORT}"
 ```
 
 The playbook installs Docker and configures SSH and UFW before deploying the
@@ -136,8 +135,7 @@ server manually:
 
 ```bash
 APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
-SSH_PORT="$(terraform -chdir=terraform output -raw ssh_port)"
-ssh -p "$SSH_PORT" -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<REMOTE
+ssh -p 22 -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<REMOTE
 cd /opt/umoja
 docker compose ps
 docker compose logs umoja --tail=100
