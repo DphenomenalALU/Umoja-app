@@ -2,6 +2,10 @@ import { getProfileByEmail } from "@/backend/src/profiles/profile-service";
 import { ApiError } from "@/backend/src/shared/errors";
 import { GET } from "./route";
 
+jest.mock("@/lib/organizer-session", () => ({
+  hasOrganizerSession: jest.fn().mockResolvedValue(true),
+}));
+
 // Replace the database-backed service so these tests never reach PostgreSQL.
 jest.mock("@/backend/src/profiles/profile-service", () => ({
   getProfileByEmail: jest.fn(),
