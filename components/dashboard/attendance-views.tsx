@@ -67,7 +67,7 @@ export function OrganizerAccess({ authorized, loading, configured, sessionError,
   if (loading) return <p className="crm-organizer-access" role="status">Checking organizer access…</p>;
 
   return <div className="crm-organizer-access">
-    <span className="crm-organizer-access-label"><LockKeyhole size={14} />{authorized ? "Organizer access is on for this browser." : "Organizer sign-in is needed to view volunteer details and record attendance."}</span>
+    <span className="crm-organizer-access-label"><LockKeyhole size={14} />{authorized ? "Organizer access is on for this browser." : "Sign in to create events, view sign-ups and volunteer records, and record attendance."}</span>
     {authorized ? <Button variant="secondary" size="sm" disabled={saving} onClick={() => void signOut()}>{saving ? "Signing out…" : "Sign out"}</Button> : configured ? <form className="crm-organizer-signin" onSubmit={(event) => void submit(event)}>
       <label className="sr-only" htmlFor="organizer-access-code">Organizer access code</label>
       <input id="organizer-access-code" type="password" autoComplete="current-password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Organizer access code" required />

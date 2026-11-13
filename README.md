@@ -21,7 +21,7 @@ Research based on 21 interviews with youth volunteers, residents, and local and 
 
 Umoja is a community coordination app for meetings and volunteer events. Organizers can publish an event with its date, venue, agenda, and (for volunteer events) a volunteer limit. Residents can browse events and RSVP, while organizers can record attendance and volunteer hours for each person.
 
-The current Next.js app has a PostgreSQL-backed event flow: the workspace loads events, organizers can create them, and residents can sign up with capacity checks. PostgreSQL API routes and feature services also support check-in, volunteer hours, and profile history. The Attendance and Volunteers dashboard screens still use sample state, and the login page is a preview; authentication and organizer permissions are not implemented.
+The Next.js workspace uses PostgreSQL for event listings, creation, sign-ups, check-ins, volunteer hours, and profile history. Organizer actions and volunteer records require a shared organizer code; public event browsing and RSVP remain open. The `/login` page is a preview, and individual user accounts are not implemented.
 
 ### Target Users
 
@@ -125,10 +125,12 @@ Attendance and volunteer details require the organizer code from `.env.local` or
 | `POST` | `/api/events/:eventId/signups` | RSVP with a name and email |
 | `POST` | `/api/events/:eventId/checkin` | Confirm attendance and record hours (organizer session required) |
 | `GET` | `/api/profiles?email=...` | Read a volunteer profile and attended-event history (organizer session required) |
+| `GET` | `/api/profiles/:personId/history` | Read a volunteer's attendance history (organizer session required) |
 | `GET`, `POST`, `DELETE` | `/api/organizer/session` | Check organizer access, sign in, or sign out |
 
-Sign-ups, check-in, and volunteer profile routes require an active organizer
-session. Sign in through the Attendance or Volunteers tab in the dashboard.
+Event creation, sign-up details, check-in, and volunteer profile routes require
+an active organizer session. Public RSVP remains open. Sign in through the
+organizer bar in the dashboard.
 
 List events:
 
@@ -144,23 +146,28 @@ curl -X POST http://localhost:3000/api/events \
   -d '{"title":"Community garden day","kind":"volunteer","startsAt":"2030-11-07T08:00:00Z","venue":"Community garden","agenda":"Prepare beds and plant seedlings","capacity":20}'
 ```
 
-Use the returned event `id` to sign up. The response includes a signup `id` that can be used to check in the volunteer. Sign in through the dashboard first; sign-ups, check-in, and profile requests need the organizer session cookie.
+Use the returned event `id` to sign up. The response includes a signup `id` that can be used to check in the volunteer. The signup request is public; the organizer session is needed for check-in and reading sign-up or profile details.
 
 ```bash
 curl -X POST http://localhost:3000/api/events/<event-id>/signups \
   -H 'Content-Type: application/json' \
   -d '{"fullName":"Amina Dube","email":"amina@example.org"}'
 
-curl -X POST http://localhost:3000/api/events/<event-id>/checkin \
+curl -c /tmp/umoja-cookies -X POST http://localhost:3000/api/organizer/session \
+  -H 'Content-Type: application/json' \
+  -d '{"accessCode":"<your private organizer code>"}'
+
+curl -b /tmp/umoja-cookies -X POST http://localhost:3000/api/events/<event-id>/checkin \
   -H 'Content-Type: application/json' \
   -d '{"signupId":"<signup-id>","volunteerHours":2.5}'
 ```
 
-After signing in through the dashboard, these routes list sign-ups and volunteer history:
+Use the session cookie to list sign-ups and volunteer history:
 
 ```bash
-curl http://localhost:3000/api/events/<event-id>/signups
-curl 'http://localhost:3000/api/profiles?email=amina@example.org'
+curl -b /tmp/umoja-cookies http://localhost:3000/api/events/<event-id>/signups
+curl -b /tmp/umoja-cookies 'http://localhost:3000/api/profiles?email=amina@example.org'
+rm /tmp/umoja-cookies
 ```
 
 Replace `<event-id>` and `<signup-id>` with IDs returned by the API.
