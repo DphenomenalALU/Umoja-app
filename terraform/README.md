@@ -6,19 +6,21 @@ It keeps the VPC, subnet, security group, and instance in separate modules.
 ## Resources
 
 - A VPC and public subnet with an internet gateway and route
-- A security group that allows the app on `app_port` and restricts SSH to `ssh_cidr`
+- A security group that allows the app on `app_port` and restricts SSH on port 22 to `ssh_cidr`
 - An Ubuntu 24.04 EC2 instance
 - Outputs for the instance ID, public IP, VPC, subnet, and security group
 
 PostgreSQL runs in the application’s Docker Compose network. The security group
 does not expose port 5432.
 
-The subnet does not assign public IPs by default, but the demo EC2 instance
-explicitly receives one so it can fetch packages and serve the app directly.
-The app port is public by default; SSH is limited to `ssh_cidr`. This setup has
-no TLS termination or reverse proxy. The security group limits outbound TCP to
-the configured HTTP and HTTPS ports. AWS security groups do not filter DNS
-traffic to or from the VPC DNS resolver ([AWS documentation](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html)).
+The subnet does not assign public IPs by default. The demo instance uses
+`associate_public_ip_address = true` so it can download packages and serve the
+app directly without a NAT gateway. `app_cidr_blocks` defaults to
+`["0.0.0.0/0"]` so the demo can be opened in a browser; set it to a narrower
+CIDR to restrict access. SSH uses port 22 and is limited to `ssh_cidr`. This
+setup has no TLS termination or reverse proxy. The security group limits
+outbound TCP to the configured HTTP and HTTPS ports. AWS security groups do not
+filter DNS traffic to or from the VPC DNS resolver ([AWS documentation](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html)).
 
 ## Requirements
 
@@ -43,10 +45,10 @@ selected region. The example IP is reserved for documentation and will not
 allow a real SSH connection. The local `terraform.tfvars` file is ignored by
 Git.
 
-`app_port`, `ssh_port`, and `web_egress_ports` have defaults for the coursework
-demo and can be set in the same file. Keep the SSH CIDR and port aligned with
-`ansible/group_vars/all.yml`. The Ansible deploy command reads `app_port` and
-`ssh_port` from Terraform outputs.
+`app_port` and `web_egress_ports` have defaults for the coursework demo and can
+be set in the same file. SSH uses port 22 in the security group and Ansible;
+only its allowed source CIDR is configurable. The Ansible deploy command reads
+`app_port` from Terraform outputs.
 
 ## Plan and apply
 

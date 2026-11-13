@@ -12,9 +12,9 @@ resource "aws_security_group" "umoja" {
   }
 
   ingress {
-    description = "SSH access"
-    from_port   = var.ssh_port
-    to_port     = var.ssh_port
+    description = "SSH access on port 22"
+    from_port   = 22
+    to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.ssh_cidr]
   }

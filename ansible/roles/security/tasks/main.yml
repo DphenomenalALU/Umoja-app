@@ -12,7 +12,7 @@
 - name: Allow SSH from my IP
   community.general.ufw:
     rule: allow
-    port: "{{ ssh_port }}"
+    port: "22"
     proto: tcp
     from_ip: "{{ ssh_allowed_cidr }}"
 
@@ -23,6 +23,7 @@
     group: root
     mode: "0644"
     content: |
+      Port 22
       PermitRootLogin no
       PasswordAuthentication no
       KbdInteractiveAuthentication no
