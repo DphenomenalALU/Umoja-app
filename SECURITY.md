@@ -85,6 +85,11 @@ The Next.js standalone app files copied into the image (26 packages) had 0 findi
 | Fix | Findings removed | Commit |
 | --- | --- | --- |
 | Removed npm, npx, and corepack from the final (`runner`) stage of the `Dockerfile`. The app only needs `node` to start (`node server.js`) and for its health check. npm is still used in the build stages, which are not part of the published image. | All 23 findings in the bundled npm: 10 high, 12 medium, 1 low | `03c7862` |
+| Required session tokens for the instance metadata service (`metadata_options { http_tokens = "required" }`) in `terraform/modules/compute/main.tf` | AWS-0028 (high) | `2757d2c` |
+| Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
+| Stopped the public subnet from giving instances a public IP by default (`map_public_ip_on_launch = false`) | AWS-0164 (high) | `2757d2c` |
+| Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
+
 
 ## Securing the scanners
 
@@ -104,10 +109,35 @@ We accept the advisories below for now.
 | `minimatch` GHSA-g3hv-75wg-m249 | Only used by Jest and ESLint to match file patterns that we write. The issue needs an attacker to supply a crafted pattern. | Fixed in `minimatch` 11.0.1, with the same major-version problem as `glob`. `npm audit fix --force` would downgrade `eslint-config-next` to 15, which does not match our Next.js 16 version. | 2026-12-10, or when Jest or `typescript-eslint` release an update |
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
+| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound traffic is limited to TCP ports 80 and 443. Listed in `.trivyignore` so CI passes. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
+| `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
+
 
 ## Infrastructure-as-code scan
 
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
+
+**First result: failed.** 6 findings: 1 critical, 3 high, 1 medium, 1 low.
+
+> CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42870300344
+
+| Check | Problem | Severity | Status |
+| --- | --- | --- | --- |
+| AWS-0104 | Security group allows outbound traffic to any IP address on all ports | Critical | Reduced to ports 80 and 443, then accepted (see Accepted risks) |
+| AWS-0028 | Instance metadata service does not require session tokens (IMDSv2) | High | Fixed |
+| AWS-0131 | Instance root disk is not encrypted | High | Fixed |
+| AWS-0164 | Public subnet gives instances a public IP address by default | High | Fixed |
+| AWS-0178 | VPC Flow Logs are not enabled | Medium | Accepted risk, below the CI threshold |
+| AWS-0124 | Security group rule has no description | Low | Fixed |
+
+**Second result: failed.** After the first fixes, 2 findings remained: AWS-0104 (critical) and AWS-0178 (medium).
+
+> CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871049391
+
+**Final result: passed.** 1 finding: 0 critical, 0 high, 1 medium (AWS-0178). AWS-0104 is listed in `.trivyignore`.
+
+> CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871393918
+ 
 
 The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on ports 80 and 443 only. Trivy still flags the public destination range as AWS-0104, so that finding is listed in `.trivyignore` and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints.
 
