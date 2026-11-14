@@ -13,7 +13,7 @@ All scans run in GitHub Actions on every pull request.
 | Scan | Tool | What it checks | Status |
 | --- | --- | --- | --- |
 | Dependency scan | `npm audit` | npm packages in `package-lock.json`, including development tools | Active |
-| Container image scan | Trivy | The Docker image built from `Dockerfile`: Alpine system packages and Node.js | Active |
+| Container image scan | Trivy | The app image built from `Dockerfile`; high/critical findings in the `postgres:17` Compose image are reported | App image blocks on high/critical; PostgreSQL is report-only |
 | IaC scan | Trivy | Terraform files in `terraform/` | Active |
 
 
@@ -52,7 +52,7 @@ The 27 findings come from only **3 advisories**. The other entries are packages 
 
 ### Container image scan (Trivy)
 
-Trivy scans the image after it is built and before it is published. The image is only pushed to the GitHub Container Registry if the scan passes.
+Trivy scans the app image after it is built and before it is published. The image is only pushed to the GitHub Container Registry if the scan passes.
 
 **Base image tested:** `node:22-alpine` (Alpine 3.24.4), digest `sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202` at the time of the scan.
 
@@ -80,6 +80,12 @@ Trivy scans the image after it is built and before it is published. The image is
 
 The Next.js standalone app files copied into the image (26 packages) had 0 findings.
 
+CI also scans the `postgres:17` image used by Compose and reports its HIGH and
+CRITICAL findings without failing the pull request. Trivy found upstream image
+vulnerabilities and a self-signed Debian test key at
+`/etc/ssl/private/ssl-cert-snakeoil.key`; the key is not an Umoja credential.
+The blocking container scan remains on the app image.
+
 ## Fixes made
 
 | Fix | Findings removed | Commit |
@@ -87,7 +93,7 @@ The Next.js standalone app files copied into the image (26 packages) had 0 findi
 | Removed npm, npx, and corepack from the final (`runner`) stage of the `Dockerfile`. The app only needs `node` to start (`node server.js`) and for its health check. npm is still used in the build stages, which are not part of the published image. | All 23 findings in the bundled npm: 10 high, 12 medium, 1 low | `03c7862` |
 | Required session tokens for the instance metadata service (`metadata_options { http_tokens = "required" }`) in `terraform/modules/compute/main.tf` | AWS-0028 (high) | `2757d2c` |
 | Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
-| Stopped the public subnet from giving instances a public IP by default (`map_public_ip_on_launch = false`) | AWS-0164 (high) | `2757d2c` |
+| Disabled automatic public IP assignment at the subnet level (`map_public_ip_on_launch = false`). The demo EC2 instance still explicitly requests a public IP; see Accepted risks. | AWS-0164 (high) | `2757d2c` |
 | Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
 
 
@@ -109,7 +115,8 @@ We accept the advisories below for now.
 | `minimatch` GHSA-g3hv-75wg-m249 | Only used by Jest and ESLint to match file patterns that we write. The issue needs an attacker to supply a crafted pattern. | Fixed in `minimatch` 11.0.1, with the same major-version problem as `glob`. `npm audit fix --force` would downgrade `eslint-config-next` to 15, which does not match our Next.js 16 version. | 2026-12-10, or when Jest or `typescript-eslint` release an update |
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
-| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound traffic is limited to TCP ports 80 and 443. Listed in `.trivyignore` so CI passes. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
+| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound TCP is limited to the configured HTTP and HTTPS ports (80 and 443 by default). Listed in `.trivyignore` so CI passes. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
+| Public EC2 address and HTTP app port | The coursework demo needs a reachable app endpoint. The instance explicitly receives a public IPv4 address and serves HTTP on port `app_port` (3000 by default); SSH is restricted to `ssh_cidr`. Do not use real community data on this host. | Put the app behind HTTPS on a private instance and restrict app ingress to the intended audience. | 2026-12-10, or before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
 
@@ -126,7 +133,7 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 | AWS-0104 | Security group allows outbound traffic to any IP address on all ports | Critical | Reduced to ports 80 and 443, then accepted (see Accepted risks) |
 | AWS-0028 | Instance metadata service does not require session tokens (IMDSv2) | High | Fixed |
 | AWS-0131 | Instance root disk is not encrypted | High | Fixed |
-| AWS-0164 | Public subnet gives instances a public IP address by default | High | Fixed |
+| AWS-0164 | Public subnet gives instances a public IP address by default | High | Fixed at subnet level; the demo instance explicitly has a public IP (see Accepted risks) |
 | AWS-0178 | VPC Flow Logs are not enabled | Medium | Accepted risk, below the CI threshold |
 | AWS-0124 | Security group rule has no description | Low | Fixed |
 
@@ -139,7 +146,7 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 > CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871393918
  
 
-The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on ports 80 and 443 only. Trivy still flags the public destination range as AWS-0104, so that finding is listed in `.trivyignore` and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints.
+The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on the configured HTTP and HTTPS ports only. Trivy still flags the public destination range as AWS-0104, so that finding is listed in `.trivyignore` and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints. AWS security groups cannot block DNS requests to the VPC resolver, so a separate port 53 rule is not required for this configuration.
 
 
 ## Run the scans locally
@@ -155,6 +162,10 @@ npm audit --omit=dev
 docker build -t umoja:local .
 trivy image umoja:local
 trivy image --severity HIGH,CRITICAL --exit-code 1 umoja:local
+
+# Report high and critical findings in the database image used by Compose
+docker pull postgres:17
+trivy image --severity HIGH,CRITICAL postgres:17
 
 # Terraform configuration, reporting all findings
 trivy config terraform/

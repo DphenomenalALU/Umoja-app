@@ -23,6 +23,7 @@
     group: root
     mode: "0644"
     content: |
+      Port 22
       PermitRootLogin no
       PasswordAuthentication no
       KbdInteractiveAuthentication no

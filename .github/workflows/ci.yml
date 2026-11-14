@@ -58,6 +58,23 @@ jobs:
       - name: Jest tests
         run: npm test
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible dependencies
+        run: |
+          python -m pip install 'ansible-core>=2.16,<3.0' -r ansible/requirements.txt
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Check Ansible playbook syntax
+        run: |
+          cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
+          ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
+            -i ansible/inventory/hosts.ini.example \
+            ansible/site.yml --syntax-check
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -92,6 +109,19 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           exit-code: "1"
+
+      - name: Pull PostgreSQL image
+        run: docker pull postgres:17
+
+      - name: PostgreSQL image scan report (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          image-ref: postgres:17
+          skip-setup-trivy: true
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "0"
 
   publish-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'

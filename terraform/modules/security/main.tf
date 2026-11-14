@@ -3,40 +3,36 @@ resource "aws_security_group" "umoja" {
   description = "Security group for Umoja application"
   vpc_id      = var.vpc_id
 
-  # HTTP access to Umoja
   ingress {
     description = "Umoja application"
-    from_port   = 3000
-    to_port     = 3000
+    from_port   = var.app_port
+    to_port     = var.app_port
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.app_cidr_blocks
   }
 
-  # SSH access (configurable)
   ingress {
-    description = "SSH access"
+    description = "SSH access on port 22"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.ssh_cidr]
   }
 
-  # The instance needs outbound web access for package updates and downloads.
-  # The rule is limited to web ports; revisit it if an egress proxy is added.
   egress {
     description = "Web access for updates and downloads"
-    from_port   = 80
-    to_port     = 80
+    from_port   = var.web_egress_ports["http"]
+    to_port     = var.web_egress_ports["http"]
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.egress_cidr_blocks
   }
 
   egress {
     description = "Secure web access for updates and downloads"
-    from_port   = 443
-    to_port     = 443
+    from_port   = var.web_egress_ports["https"]
+    to_port     = var.web_egress_ports["https"]
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.egress_cidr_blocks
   }
 
   tags = {
