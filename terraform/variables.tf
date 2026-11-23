@@ -112,33 +112,3 @@ variable "associate_public_ip_address" {
   type        = bool
   default     = true
 }
-
-variable "private_app_subnet_cidr" {
-  description = "CIDR block for application subnet"
-  type        = string
-}
-
-variable "private_db_subnet_cidr" {
-  description = "CIDR block for database subnet"
-  type        = string
-}
-
-variable "private_db_subnet_cidr_b" {
-  description = "Second database subnet CIDR block"
-  type        = string
-}
-
-variable "db_port" {
-  type    = number
-  default = 5432
-}
-
-variable "db_username" {
-  type      = string
-  sensitive = true
-}
-
-variable "db_password" {
-  type      = string
-  sensitive = true
-}
