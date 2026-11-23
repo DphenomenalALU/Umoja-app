@@ -5,8 +5,11 @@ provider "aws" {
 module "networking" {
   source = "./modules/networking"
 
-  vpc_cidr           = var.vpc_cidr
-  public_subnet_cidr = var.public_subnet_cidr
+  vpc_cidr                 = var.vpc_cidr
+  public_subnet_cidr       = var.public_subnet_cidr
+  private_app_subnet_cidr  = var.private_app_subnet_cidr
+  private_db_subnet_cidr   = var.private_db_subnet_cidr
+  private_db_subnet_cidr_b = var.private_db_subnet_cidr_b
 }
 
 module "security" {
@@ -25,10 +28,29 @@ module "compute" {
 
   source = "./modules/compute"
 
-  subnet_id                   = module.networking.subnet_id
-  security_group_id           = module.security.security_group_id
-  instance_type               = var.instance_type
-  environment                 = var.environment
-  key_name                    = var.key_name
-  associate_public_ip_address = var.associate_public_ip_address
+  instance_type = var.instance_type
+  environment   = var.environment
+  key_name      = var.key_name
+
+  public_subnet_id      = module.networking.public_subnet_id
+  private_app_subnet_id = module.networking.private_app_subnet_id
+
+  bastion_security_group_id     = module.security.bastion_security_group_id
+  application_security_group_id = module.security.application_security_group_id
+  database_security_group_id    = module.security.database_security_group_id
+}
+
+module "database" {
+  source = "./modules/database"
+
+  private_db_subnet_a_id     = module.networking.private_db_subnet_a_id
+  private_db_subnet_b_id     = module.networking.private_db_subnet_b_id
+  database_security_group_id = module.security.database_security_group_id
+
+  db_username = var.db_username
+  db_password = var.db_password
+}
+
+module "ecr" {
+  source = "./modules/ecr"
 }
