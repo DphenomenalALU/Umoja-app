@@ -115,7 +115,7 @@ We accept the advisories below for now.
 | `minimatch` GHSA-g3hv-75wg-m249 | Only used by Jest and ESLint to match file patterns that we write. The issue needs an attacker to supply a crafted pattern. | Fixed in `minimatch` 11.0.1, with the same major-version problem as `glob`. `npm audit fix --force` would downgrade `eslint-config-next` to 15, which does not match our Next.js 16 version. | 2026-12-10, or when Jest or `typescript-eslint` release an update |
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
-| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound TCP is limited to the configured HTTP and HTTPS ports (80 and 443 by default). Listed in `.trivyignore` so CI passes. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
+| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound TCP is limited to the configured HTTP and HTTPS ports (80 and 443 by default). Excused only on those two reviewed egress rules with an inline `#trivy:ignore:AWS-0104` in `terraform/modules/security/main.tf`; any other rule with unrestricted egress still fails CI. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
 | Public EC2 address and HTTP app port | The coursework demo needs a reachable app endpoint. The instance explicitly receives a public IPv4 address and serves HTTP on port `app_port` (3000 by default); SSH is restricted to `ssh_cidr`. Do not use real community data on this host. | Put the app behind HTTPS on a private instance and restrict app ingress to the intended audience. | 2026-12-10, or before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
@@ -141,12 +141,22 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 
 > CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871049391
 
-**Final result: passed.** 1 finding: 0 critical, 0 high, 1 medium (AWS-0178). AWS-0104 is listed in `.trivyignore`.
+**Final result: passed.** 1 finding: 0 critical, 0 high, 1 medium (AWS-0178). At that point AWS-0104 was listed in `.trivyignore`; it has since been narrowed to the two reviewed rules (see [Exception review](#exception-review-summative)).
 
 > CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871393918
  
 
-The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on the configured HTTP and HTTPS ports only. Trivy still flags the public destination range as AWS-0104, so that finding is listed in `.trivyignore` and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints. AWS security groups cannot block DNS requests to the VPC resolver, so a separate port 53 rule is not required for this configuration.
+The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on the configured HTTP and HTTPS ports only. Trivy still flags the public destination range as AWS-0104, so that finding is excused on those two egress rules only, with `#trivy:ignore:AWS-0104` directly above each rule, and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints. AWS security groups cannot block DNS requests to the VPC resolver, so a separate port 53 rule is not required for this configuration.
+
+### Exception review 
+
+Before the Summative infrastructure was added, we reviewed how scan findings are excused so a critical finding cannot be silently allowed through.
+
+- **Removed the repository-wide ignore.** `.trivyignore` used to list `AWS-0104` (critical), which hid that check for every Terraform file. It now contains no checks, only a note explaining the policy below.
+- **Excused only the reviewed rules.** The two egress rules that need outbound web access (TCP 80 and 443) are marked with `#trivy:ignore:AWS-0104` in `terraform/modules/security/main.tf`. Any other security group rule with unrestricted egress still fails the workflow.
+- **Evidence.** When only one of the two rules was marked, CI failed on the unmarked rule with 1 critical finding: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45187066646. After both reviewed rules were marked, it passed: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45188600741.
+- **Scanning with real variable values.** The IaC scan now uses `terraform/terraform.tfvars.example`. Without it, Trivy scanned with empty variables and could not check rules that depend on them, such as the SSH source range (`ssh_cidr`). New Terraform variables must have a safe sample value in that file. CI run with the example values: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45191800726.
+
 
 
 ## Run the scans locally
@@ -167,10 +177,10 @@ trivy image --severity HIGH,CRITICAL --exit-code 1 umoja:local
 docker pull postgres:17
 trivy image --severity HIGH,CRITICAL postgres:17
 
-# Terraform configuration, reporting all findings
-trivy config terraform/
+# Terraform configuration, reporting all findings (with the same sample values as CI)
+trivy config --tf-vars terraform/terraform.tfvars.example terraform/
 
 # Terraform configuration, failing on high or critical findings
-trivy config --severity HIGH,CRITICAL --exit-code 1 terraform/
+trivy config --tf-vars terraform/terraform.tfvars.example --severity HIGH,CRITICAL --exit-code 1 terraform/
 ```
 
