@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Run CI checks
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
+  build-and-push:
+    name: Build and push image to ECR
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder until the ECR registry is merged
+        run: echo "ECR build and push will be added after SUM-02 is merged."
+
+  deploy:
+    name: Deploy with Ansible
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Placeholder until the Ansible deployment is merged
+        run: echo "Ansible deployment will be added after SUM-03 and SUM-04 are merged."
