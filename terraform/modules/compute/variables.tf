@@ -2,14 +2,6 @@ variable "instance_type" {
   type = string
 }
 
-variable "subnet_id" {
-  type = string
-}
-
-variable "security_group_id" {
-  type = string
-}
-
 variable "environment" {
   description = "Environment name"
   type        = string
@@ -20,6 +12,22 @@ variable "key_name" {
   type        = string
 }
 
-variable "associate_public_ip_address" {
-  type = bool
+variable "public_subnet_id" {
+  type = string
+}
+
+variable "private_app_subnet_id" {
+  type = string
+}
+
+variable "bastion_security_group_id" {
+  type = string
+}
+
+variable "application_security_group_id" {
+  type = string
+}
+
+variable "database_security_group_id" {
+  type = string
 }
