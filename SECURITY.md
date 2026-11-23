@@ -155,6 +155,9 @@ Before the Summative infrastructure was added, we reviewed how scan findings are
 - **Removed the repository-wide ignore.** `.trivyignore` used to list `AWS-0104` (critical), which hid that check for every Terraform file. It now contains no checks, only a note explaining the policy below.
 - **Excused only the reviewed rules.** The two egress rules that need outbound web access (TCP 80 and 443) are marked with `#trivy:ignore:AWS-0104` in `terraform/modules/security/main.tf`. Any other security group rule with unrestricted egress still fails the workflow.
 - **Evidence.** When only one of the two rules was marked, CI failed on the unmarked rule with 1 critical finding: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45187066646. After both reviewed rules were marked, it passed: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45188600741.
+
+- **Critical finding demo.** Setting `ssh_cidr` to `0.0.0.0/0` (SSH open to the internet) in the example values made the IaC scan fail with a critical finding: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45206766857/job/137804487679. The demo pull request was closed without merging.
+
 - **Scanning with real variable values.** The IaC scan now uses `terraform/terraform.tfvars.example`. Without it, Trivy scanned with empty variables and could not check rules that depend on them, such as the SSH source range (`ssh_cidr`). New Terraform variables must have a safe sample value in that file. CI run with the example values: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45191800726.
 
 
