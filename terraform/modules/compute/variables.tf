@@ -27,3 +27,8 @@ variable "bastion_security_group_id" {
 variable "application_security_group_id" {
   type = string
 }
+
+variable "application_instance_profile_name" {
+  description = "Instance profile that grants the app VM read-only access to ECR"
+  type        = string
+}

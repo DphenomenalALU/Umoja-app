@@ -1,3 +1,8 @@
+output "db_host" {
+  description = "Database DNS hostname without the port"
+  value       = aws_db_instance.umoja.address
+}
+
 output "db_endpoint" {
   value = aws_db_instance.umoja.endpoint
 }

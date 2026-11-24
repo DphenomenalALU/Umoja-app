@@ -9,7 +9,7 @@ This configuration provisions the AWS environment for the Summative deployment.
 - A bastion host with SSH limited to the configured administrator address
 - A private application EC2 instance and a managed PostgreSQL database
 - A public HTTP load balancer that forwards traffic to the private application instance
-- A private ECR repository with image scanning on push and immutable image tags
+- A private ECR repository with image scanning on push, plus a read-only instance profile for image pulls
 - A GitHub OIDC provider and deploy role for the Umoja repository
 
 The app VM and database do not receive public addresses. The load balancer is the
@@ -72,7 +72,7 @@ The deployment workflow also needs these outputs:
     terraform -chdir=terraform output -raw bastion_public_ip
     terraform -chdir=terraform output -raw bastion_security_group_id
     terraform -chdir=terraform output -raw application_private_ip
-    terraform -chdir=terraform output -raw db_endpoint
+    terraform -chdir=terraform output -raw db_host
 
 Add them to the GitHub Actions repository variables documented in the root
 README. Keep SSH private keys and Ansible Vault contents in GitHub secrets.

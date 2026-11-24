@@ -36,8 +36,9 @@ module "compute" {
   public_subnet_id      = module.networking.public_subnet_id
   private_app_subnet_id = module.networking.private_app_subnet_id
 
-  bastion_security_group_id     = module.security.bastion_security_group_id
-  application_security_group_id = module.security.application_security_group_id
+  bastion_security_group_id         = module.security.bastion_security_group_id
+  application_security_group_id     = module.security.application_security_group_id
+  application_instance_profile_name = module.ecr.application_instance_profile_name
 }
 
 module "database" {

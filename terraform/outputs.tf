@@ -67,6 +67,11 @@ output "app_port" {
   value = var.app_port
 }
 
+output "db_host" {
+  description = "RDS hostname without the port, for DATABASE_HOST"
+  value       = module.database.db_host
+}
+
 output "db_endpoint" {
   value = module.database.db_endpoint
 }

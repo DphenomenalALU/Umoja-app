@@ -62,6 +62,7 @@ resource "aws_instance" "application" {
   subnet_id = var.private_app_subnet_id
 
   associate_public_ip_address = false
+  iam_instance_profile        = var.application_instance_profile_name
 
   metadata_options {
     http_tokens = "required"
