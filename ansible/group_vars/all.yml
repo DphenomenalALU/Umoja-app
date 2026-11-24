@@ -1,6 +1,15 @@
 ---
 app_dir: /opt/umoja
 app_port: 3000
-ssh_allowed_cidr: "REPLACE_ME_CURRENT_PUBLIC_IP/32"
-postgres_user: umoja
-postgres_db: umoja
+ssh_allowed_cidr: "10.0.0.0/16"
+app_allowed_cidr: "10.0.0.0/16"
+
+aws_region: "af-south-1"
+ecr_registry: "386963842124.dkr.ecr.af-south-1.amazonaws.com"
+ecr_repository: "386963842124.dkr.ecr.af-south-1.amazonaws.com/umoja"
+app_image: ""
+
+database_host: "umoja-postgres.cxsqmw6oex8d.af-south-1.rds.amazonaws.com"
+database_port: 5432
+database_name: "umoja"
+database_user: "umojaadmin"
