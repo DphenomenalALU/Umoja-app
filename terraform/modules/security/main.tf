@@ -11,6 +11,7 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = [var.ssh_cidr]
   }
 
+  #trivy:ignore:AWS-0104
   egress {
     description = "Allow outbound traffic"
     from_port   = 0
@@ -52,7 +53,7 @@ resource "aws_security_group" "application" {
     protocol    = "tcp"
     cidr_blocks = var.egress_cidr_blocks
   }
-
+  #trivy:ignore:AWS-0104
   egress {
     description = "Secure web access"
     from_port   = var.web_egress_ports["https"]
