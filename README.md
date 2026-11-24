@@ -178,7 +178,7 @@ Replace `<event-id>` and `<signup-id>` with IDs returned by the API.
 Pushing to `main` runs `.github/workflows/cd.yml`. Pull requests never deploy.
 
 1. **Checks:** reuses `ci.yml` (dependency audit, Terraform and image scans, type check, lint, Jest, Ansible syntax check). Nothing below runs if any check fails.
-2. **Build and push:** builds the image, scans it with Trivy (fails on HIGH/CRITICAL), then pushes `umoja:<commit SHA>` to the private ECR repository.
+2. **Build and push:** builds the image, scans it with Trivy (fails on HIGH/CRITICAL), then publishes `umoja:<commit SHA>` to private ECR. Tags are immutable; a retry checks for and rescans an existing image instead of overwriting it.
 3. **Deploy:** opens the bastion to the runner's IP, runs the Ansible playbook on the private VM through the bastion, then closes the bastion again even if the deploy failed.
 
 GitHub logs in to AWS with OIDC: the `umoja-github-deploy` role trusts only this repository on `main` or the `production` environment, and no AWS keys are stored. Deploys run one at a time.
