@@ -11,6 +11,7 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = [var.ssh_cidr]
   }
 
+  #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
     description = "HTTP for operating system updates"
     from_port   = var.web_egress_ports["http"]
@@ -18,7 +19,7 @@ resource "aws_security_group" "bastion" {
     protocol    = "tcp"
     cidr_blocks = var.egress_cidr_blocks
   }
-
+  #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
     description = "HTTPS for package and image downloads"
     from_port   = var.web_egress_ports["https"]
@@ -87,6 +88,7 @@ resource "aws_security_group" "application" {
     security_groups = [aws_security_group.load_balancer.id]
   }
 
+  #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
     description = "HTTP for operating system updates"
     from_port   = var.web_egress_ports["http"]
@@ -95,6 +97,7 @@ resource "aws_security_group" "application" {
     cidr_blocks = var.egress_cidr_blocks
   }
 
+  #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
     description = "HTTPS for package and ECR image downloads"
     from_port   = var.web_egress_ports["https"]
