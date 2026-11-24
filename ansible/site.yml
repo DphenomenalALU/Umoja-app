@@ -10,7 +10,7 @@
       ansible.builtin.assert:
         that:
           - ssh_allowed_cidr is string
-          - ssh_allowed_cidr.endswith('/32')
+          - "'/' in ssh_allowed_cidr"
           - "'REPLACE_ME' not in ssh_allowed_cidr"
           - vault_postgres_password is string
           - vault_postgres_password | length > 0
@@ -51,5 +51,5 @@
           - (app_health.json | default({})).get('status', '') == 'healthy'
           - (app_health.json | default({})).get('database', '') == 'ready'
         fail_msg: >-
-          Umoja did not become healthy. Check the app and PostgreSQL container
-          logs on the server before retrying the playbook.
+          Umoja did not become healthy. Check the application logs and RDS
+          connectivity on the server before retrying the playbook.

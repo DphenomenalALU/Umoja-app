@@ -7,38 +7,40 @@
     group: root
     mode: "0755"
 
-- name: Copy app folders
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../{{ item }}/"
-    dest: "{{ app_dir }}/{{ item }}/"
-    owner: root
-    group: root
-    mode: preserve
-  loop:
-    - app
-    - backend
-    - components
-    - lib
-    - public
+- name: Validate deployment image
+  ansible.builtin.assert:
+    that:
+      - app_image is string
+      - app_image is match('^[^/]+/[^:]+:[0-9a-fA-F]{40}$')
+    fail_msg: >-
+      app_image must be a full ECR image URI tagged with a 40-character commit
+      SHA, for example {{ ecr_repository }}:<commit-sha>.
 
-- name: Copy app files
+- name: Copy database migration
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../{{ item }}"
-    dest: "{{ app_dir }}/{{ item }}"
-    owner: root
-    group: root
-    mode: "0644"
-  loop:
-    - .dockerignore
-    - Dockerfile
-    - docker-compose.yml
-    - eslint.config.mjs
-    - jest.config.cjs
-    - next.config.ts
-    - package.json
-    - package-lock.json
-    - tsconfig.json
-    - tsconfig.jest.json
+    src: "{{ playbook_dir }}/../backend/migrations/001_initial_schema.sql"
+    dest: /tmp/umoja-001_initial_schema.sql
+    mode: "0600"
+
+- name: Check database schema
+  ansible.builtin.shell:
+    cmd: >-
+      psql "host={{ database_host }} port={{ database_port }} dbname={{ database_name }} user={{ database_user }} sslmode=require"
+      -tAc "SELECT to_regclass('public.people');"
+  environment:
+    PGPASSWORD: "{{ vault_postgres_password }}"
+  register: schema_check
+  changed_when: false
+
+- name: Apply database schema
+  ansible.builtin.shell:
+    cmd: >-
+      psql "host={{ database_host }} port={{ database_port }} dbname={{ database_name }} user={{ database_user }} sslmode=require"
+      -v ON_ERROR_STOP=1
+      -f /tmp/umoja-001_initial_schema.sql
+  environment:
+    PGPASSWORD: "{{ vault_postgres_password }}"
+  when: schema_check.stdout | trim == ""
 
 - name: Create app environment file
   ansible.builtin.template:
@@ -49,41 +51,40 @@
     mode: "0600"
   no_log: true
 
-- name: Deploy Umoja and initialize its database
-  block:
-    - name: Start Umoja containers
-      community.docker.docker_compose_v2:
-        project_src: "{{ app_dir }}"
-        state: present
-        build: policy
-        pull: missing
-        recreate: auto
-        wait: true
+- name: Create production Compose file
+  ansible.builtin.template:
+    src: docker-compose.production.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
 
-    - name: Check database schema
-      ansible.builtin.shell:
-        cmd: >-
-          docker compose exec -T postgres
-          psql -U "{{ postgres_user }}" -d "{{ postgres_db }}"
-          -tAc "SELECT to_regclass('public.people');"
-        chdir: "{{ app_dir }}"
-      register: schema_check
-      changed_when: false
+- name: Authenticate Docker to ECR
+  ansible.builtin.shell:
+    cmd: >-
+      aws ecr get-login-password --region {{ aws_region }}
+      | docker login --username AWS --password-stdin {{ ecr_registry }}
+  changed_when: false
 
-    - name: Apply database schema
-      ansible.builtin.shell:
-        cmd: >-
-          docker compose exec -T postgres
-          psql -v ON_ERROR_STOP=1
-          -U "{{ postgres_user }}"
-          -d "{{ postgres_db }}"
-          < backend/migrations/001_initial_schema.sql
-        chdir: "{{ app_dir }}"
-      when: schema_check.stdout | trim == ""
-  rescue:
-    - name: Report the failed deployment step
-      ansible.builtin.fail:
-        msg: >-
-          Task '{{ ansible_failed_task.name }}' failed while deploying Umoja.
-          Check 'docker compose ps' and 'docker compose logs' in {{ app_dir }},
-          fix the reported issue, then rerun the playbook.
+- name: Pull Umoja ECR image
+  ansible.builtin.shell:
+    cmd: "docker pull {{ app_image }}"
+  changed_when: false
+
+- name: Start Umoja application
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    state: present
+    pull: always
+    recreate: auto
+    wait: true
+
+- name: Wait for application health
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ app_port }}/api/health"
+    status_code: 200
+    return_content: true
+  register: health
+  retries: 30
+  delay: 2
+  until: health.status == 200
