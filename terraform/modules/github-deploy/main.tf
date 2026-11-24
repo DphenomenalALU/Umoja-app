@@ -69,6 +69,16 @@ data "aws_iam_policy_document" "deploy" {
     resources = [local.ecr_repository_arn]
   }
 
+  statement {
+    sid = "ReadUmojaImageForRetry"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+    resources = [local.ecr_repository_arn]
+  }
+
   # The deploy job adds the runner's IP to the bastion for SSH, then removes it.
   statement {
     sid = "OpenBastionForDeploy"

@@ -10,7 +10,7 @@ This configuration provisions the AWS environment for the Summative deployment.
 - A private application EC2 instance and a managed PostgreSQL database
 - A public HTTP load balancer that forwards traffic to the private application instance
 - A private ECR repository with scan-on-push and immutable commit-SHA tags, plus a read-only instance profile for image pulls
-- A GitHub OIDC provider and deploy role for the Umoja repository
+- A GitHub OIDC provider and deploy role that publishes images, reads an existing image on retries, and briefly opens the bastion for deployment
 
 The app VM and database do not receive public addresses. The load balancer is the
 public web entry point; the bastion is only for SSH. The ALB listens on HTTP
