@@ -2,7 +2,7 @@
 
 This playbook configures the private Ubuntu application VM and deploys the
 Umoja image from ECR. The application uses the managed PostgreSQL database in
-RDS; no PostgreSQL container is started.
+RDS over TLS; no PostgreSQL container is started.
 
 ## Requirements
 
