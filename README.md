@@ -185,8 +185,10 @@ GitHub logs in to AWS with OIDC: the `umoja-github-deploy` role trusts only this
 
 | Type | Name |
 | --- | --- |
-| Variables | `AWS_REGION`, `ECR_REPOSITORY_URL`, `AWS_DEPLOY_ROLE_ARN`, `BASTION_HOST`, `APP_PRIVATE_IP`, `BASTION_SECURITY_GROUP_ID` |
+| Variables | `AWS_REGION`, `ECR_REPOSITORY_URL`, `AWS_DEPLOY_ROLE_ARN`, `BASTION_HOST`, `APP_PRIVATE_IP`, `DATABASE_HOST`, `BASTION_SECURITY_GROUP_ID` |
 | `production` secrets | `DEPLOY_SSH_PRIVATE_KEY`, `ANSIBLE_VAULT_FILE`, `ANSIBLE_VAULT_PASSWORD` |
+
+Set `DATABASE_HOST` to the `db_host` Terraform output (`terraform -chdir=terraform output -raw db_host`).
 ## Project Structure
 
 ```text
