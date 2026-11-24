@@ -94,6 +94,7 @@ The blocking container scan remains on the app image.
 | Required session tokens for the instance metadata service (`metadata_options { http_tokens = "required" }`) in `terraform/modules/compute/main.tf` | AWS-0028 (high) | `2757d2c` |
 | Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
 | Disabled automatic public IP assignment at the subnet level. The app VM stays private; only the bastion explicitly receives a public address for restricted SSH, and public web traffic reaches the app through the load balancer. | AWS-0164 (high) | e00f610 |
+| Set the private ECR repository to immutable tags so a commit-SHA image cannot be overwritten. | AWS-0031 (high) | `64f4872` |
 | Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
 
 
@@ -116,13 +117,15 @@ We accept the advisories below for now.
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
 | AWS-0104 (Terraform) | Critical. The bastion and private app VM need outbound TCP 80 and 443 for updates and deployment image pulls. Four security-group egress rules are reviewed and excused individually; any other unrestricted egress still fails CI. | Add VPC endpoints and a controlled package mirror before using this outside the course demo. | 2026-12-10, or before any real-community deployment |
-| Public HTTP endpoint | The internet-facing ALB accepts HTTP on port 80 and forwards traffic to the private app VM. The bastion public IP is limited to SSH from the administrator and temporary deploy runner. No TLS certificate or domain is configured for the demo. | Add HTTPS with a managed certificate and domain before using real community data. | Before any real-community deployment |
+| Public HTTP endpoint | No domain or ACM certificate is available for the demo, so the internet-facing ALB uses HTTP on port 80. Trivy reports this as critical AWS-0054; the IaC gate does not suppress it. The bastion is limited to SSH from the administrator and temporary deploy runner. | Add HTTPS with a managed certificate and domain before using real community data. | Before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
 
 ## Infrastructure-as-code scan
 
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
+
+The first Summative scan on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45502486709) found AWS-0031 (mutable ECR tags) and AWS-0054 (the HTTP listener). AWS-0031 is fixed in `64f4872`. AWS-0054 remains an unsuppressed critical finding because no domain or certificate is available for the demo.
 
 **First result: failed.** 6 findings: 1 critical, 3 high, 1 medium, 1 low.
 
