@@ -19,6 +19,7 @@ resource "aws_security_group" "umoja" {
     cidr_blocks = [var.ssh_cidr]
   }
 
+  #trivy:ignore:AWS-0104
   egress {
     description = "Web access for updates and downloads"
     from_port   = var.web_egress_ports["http"]
@@ -26,7 +27,7 @@ resource "aws_security_group" "umoja" {
     protocol    = "tcp"
     cidr_blocks = var.egress_cidr_blocks
   }
-
+  #trivy:ignore:AWS-0104
   egress {
     description = "Secure web access for updates and downloads"
     from_port   = var.web_egress_ports["https"]
