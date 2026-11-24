@@ -54,4 +54,4 @@ module "database" {
 module "ecr" {
   source = "./modules/ecr"
 }
-}
+
