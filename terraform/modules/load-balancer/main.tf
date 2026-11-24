@@ -1,10 +1,12 @@
 resource "aws_lb" "umoja" {
-  name               = "umoja-public"
+  name = "umoja-public"
+  #trivy:ignore:AWS-0053:exp:2026-12-10
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.load_balancer_sg_id]
   subnets            = var.public_subnet_ids
 
+  drop_invalid_header_fields = true
   enable_deletion_protection = false
 
   tags = {

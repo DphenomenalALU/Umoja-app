@@ -117,6 +117,7 @@ We accept the advisories below for now.
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
 | AWS-0104 (Terraform) | Critical. The bastion and private app VM need outbound TCP 80 and 443 for updates and deployment image pulls. Four security-group egress rules are reviewed and excused individually; any other unrestricted egress still fails CI. | Add VPC endpoints and a controlled package mirror before using this outside the course demo. | 2026-12-10, or before any real-community deployment |
+| `AWS-0053` (Terraform) | High. The public ALB is the app's public URL; the app VM and database remain private and receive traffic only from their intended security groups. The Trivy ignore is scoped to this load balancer and expires on the date shown in Terraform. | Remove the public listener when a public demo URL is no longer needed, or replace it with private access. | 2026-12-10 |
 | Public HTTP endpoint | No domain or ACM certificate is available for the demo, so the internet-facing ALB uses HTTP on port 80. Trivy reports this as critical AWS-0054; the IaC gate does not suppress it. The bastion is limited to SSH from the administrator and temporary deploy runner. | Add HTTPS with a managed certificate and domain before using real community data. | Before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
@@ -125,7 +126,7 @@ We accept the advisories below for now.
 
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
 
-The first Summative scan on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45502486709) found AWS-0031 (mutable ECR tags) and AWS-0054 (the HTTP listener). AWS-0031 is fixed in `64f4872`. AWS-0054 remains an unsuppressed critical finding because no domain or certificate is available for the demo.
+The first Summative scan on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45502486709) found AWS-0031 (mutable ECR tags) and AWS-0054 (the HTTP listener). AWS-0031 is fixed in `64f4872`. AWS-0054 remains an unsuppressed critical finding because no domain or certificate is available for the demo. AWS-0053 is accepted only for the public app URL; the app VM and database remain private.
 
 **First result: failed.** 6 findings: 1 critical, 3 high, 1 medium, 1 low.
 
