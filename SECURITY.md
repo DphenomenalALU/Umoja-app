@@ -95,6 +95,7 @@ The blocking container scan remains on the app image.
 | Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
 | Disabled automatic public IP assignment at the subnet level. The app VM stays private; only the bastion explicitly receives a public address for restricted SSH, and public web traffic reaches the app through the load balancer. | AWS-0164 (high) | e00f610 |
 | Set the private ECR repository to immutable tags so a commit-SHA image cannot be overwritten. | AWS-0031 (high) | `64f4872` |
+| Enabled `drop_invalid_header_fields` on the application load balancer so malformed header names are removed before forwarding. | AWS-0052 (high) | `5cbe64e` |
 | Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
 
 
@@ -127,6 +128,8 @@ We accept the advisories below for now.
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
 
 The first Summative scan on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45502486709) found AWS-0031 (mutable ECR tags) and AWS-0054 (the HTTP listener). AWS-0031 is fixed in `64f4872`. AWS-0054 remains an unsuppressed critical finding because no domain or certificate is available for the demo. AWS-0053 is accepted only for the public app URL; the app VM and database remain private.
+
+The latest scan on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45512095053) reports only AWS-0054. AWS-0052 is fixed, and AWS-0053 is the documented, expiring exception for the required public endpoint. AWS-0054 remains visible and keeps the check failing until HTTPS is configured.
 
 **First result: failed.** 6 findings: 1 critical, 3 high, 1 medium, 1 low.
 
