@@ -10,7 +10,7 @@ Run Ansible from Linux, macOS, or WSL.
 
 - Python 3
 - Ansible Core
-- AWS CLI credentials with permission to authenticate to ECR
+- The read-only ECR instance profile attached to the app VM by Terraform
 - OpenSSH client
 - The bastion and private VM SSH details
 - The RDS endpoint and database credentials
