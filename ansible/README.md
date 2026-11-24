@@ -6,7 +6,7 @@ RDS; no PostgreSQL container is started.
 
 ## Requirements
 
-Run Ansible from WSL or another Linux system.
+Run Ansible from Linux, macOS, or WSL.
 
 - Python 3
 - Ansible Core
@@ -36,25 +36,35 @@ Edit `ansible/inventory/hosts.ini`:
 
 ```ini
 [umoja]
-umoja-server ansible_host=10.0.2.93 ansible_user=ubuntu
+umoja-server ansible_host=APP_PRIVATE_IP ansible_user=ubuntu
 
 [umoja:vars]
 ansible_ssh_private_key_file=/home/YOUR_USER/.ssh/umoja-key.pem
-ansible_ssh_common_args=-o ProxyJump=ubuntu@13.246.194.249 -i /home/YOUR_USER/.ssh/umoja-key.pem
+ansible_ssh_common_args=-o ProxyJump=bastion
 ```
 
-Copy the SSH key into WSL and protect it:
+Add this entry to ~/.ssh/config so SSH uses the same key for the bastion:
+
+```ssh
+Host bastion
+  HostName BASTION_PUBLIC_IP
+  User ubuntu
+  IdentityFile /home/YOUR_USER/.ssh/umoja-key.pem
+  IdentitiesOnly yes
+```
+
+Place the SSH key at the path in the inventory and restrict its permissions:
 
 ```bash
 mkdir -p ~/.ssh
-cp /mnt/c/Users/YOUR_WINDOWS_USER/Downloads/umoja-key.pem ~/.ssh/umoja-key.pem
+cp /path/to/umoja-key.pem ~/.ssh/umoja-key.pem
 chmod 600 ~/.ssh/umoja-key.pem
 ```
 
-The application settings in `ansible/group_vars/all.yml` use the AWS region,
-ECR repository, RDS endpoint, and private VPC CIDR supplied by the
-infrastructure deployment. The image is passed at deployment time as a full
-40-character commit-SHA URI.
+Set aws_region to the same region used by Terraform. Set database_host to the
+hostname from terraform output -raw db_host. Pass app_image as the ECR URI
+with the full 40-character commit SHA. The playbook checks these values before
+it changes the host.
 
 Create and encrypt the Vault file:
 
@@ -103,8 +113,9 @@ Deploy the image produced by the CI workflow:
 ansible-playbook \
   -i ansible/inventory/hosts.ini \
   ansible/site.yml \
-  -e "app_image=386963842124.dkr.ecr.af-south-1.amazonaws.com/umoja:<40-character-commit-sha>" \
-  -e "aws_region=af-south-1" \
+  -e "app_image=ECR_REPOSITORY_URL:FULL_COMMIT_SHA" \
+  -e "aws_region=AWS_REGION" \
+  -e "database_host=RDS_HOST" \
   --ask-vault-pass
 ```
 
@@ -117,8 +128,8 @@ Run the same command a second time; an idempotent run should finish with
 
 ```bash
 ssh -i ~/.ssh/umoja-key.pem \
-  -J ubuntu@13.246.194.249 \
-  ubuntu@10.0.2.93
+  -J ubuntu@BASTION_PUBLIC_IP \
+  ubuntu@APP_PRIVATE_IP
 ```
 
 On the VM:

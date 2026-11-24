@@ -7,15 +7,6 @@
     group: root
     mode: "0755"
 
-- name: Validate deployment image
-  ansible.builtin.assert:
-    that:
-      - app_image is string
-      - app_image is match('^[^/]+/[^:]+:[0-9a-fA-F]{40}$')
-    fail_msg: >-
-      app_image must be a full ECR image URI tagged with a 40-character commit
-      SHA, for example {{ ecr_repository }}:<commit-sha>.
-
 - name: Copy database migration
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../backend/migrations/001_initial_schema.sql"
@@ -31,6 +22,7 @@
     PGPASSWORD: "{{ vault_postgres_password }}"
   register: schema_check
   changed_when: false
+  no_log: true
 
 - name: Apply database schema
   ansible.builtin.shell:
@@ -41,6 +33,7 @@
   environment:
     PGPASSWORD: "{{ vault_postgres_password }}"
   when: schema_check.stdout | trim == ""
+  no_log: true
 
 - name: Create app environment file
   ansible.builtin.template:
