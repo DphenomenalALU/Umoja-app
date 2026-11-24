@@ -54,4 +54,12 @@ module "database" {
 module "ecr" {
   source = "./modules/ecr"
 }
+
+
+module "github_deploy" {
+  source = "./modules/github-deploy"
+
+  github_repository         = var.github_repository
+  ecr_repository_name       = "umoja"
+  bastion_security_group_id = module.security.bastion_security_group_id
 }

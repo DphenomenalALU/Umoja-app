@@ -65,3 +65,8 @@ output "ecr_repository_url" {
 output "application_url" {
   value = "http://${module.compute.bastion_public_ip}:3000"
 }
+
+
+output "github_deploy_role_arn" {
+  value = module.github_deploy.role_arn
+}

@@ -142,3 +142,10 @@ variable "db_password" {
   type      = string
   sensitive = true
 }
+
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) allowed to deploy through OIDC"
+  type        = string
+  default     = "DphenomenalALU/Umoja-app"
+}
