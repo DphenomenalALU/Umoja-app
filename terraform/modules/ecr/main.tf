@@ -5,7 +5,7 @@ resource "aws_ecr_repository" "umoja" {
     scan_on_push = true
   }
 
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 }
 
 data "aws_iam_policy_document" "application_assume_role" {

@@ -64,6 +64,7 @@ data "aws_iam_policy_document" "deploy" {
       "ecr:UploadLayerPart",
       "ecr:CompleteLayerUpload",
       "ecr:PutImage",
+      "ecr:DescribeImages",
     ]
     resources = [local.ecr_repository_arn]
   }
