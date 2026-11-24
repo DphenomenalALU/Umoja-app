@@ -6,6 +6,10 @@ output "public_subnet_id" {
   value = module.networking.public_subnet_id
 }
 
+output "public_subnet_ids" {
+  value = module.networking.public_subnet_ids
+}
+
 output "private_app_subnet_id" {
   value = module.networking.private_app_subnet_id
 }
@@ -20,6 +24,10 @@ output "private_db_subnet_b_id" {
 
 output "bastion_security_group_id" {
   value = module.security.bastion_security_group_id
+}
+
+output "load_balancer_security_group_id" {
+  value = module.security.load_balancer_security_group_id
 }
 
 output "application_security_group_id" {
@@ -46,6 +54,15 @@ output "application_private_ip" {
   value = module.compute.application_private_ip
 }
 
+output "application_url" {
+  description = "Public HTTP URL routed through the load balancer to the private application VM"
+  value       = format("http://%s", module.load_balancer.dns_name)
+}
+
+output "load_balancer_dns_name" {
+  value = module.load_balancer.dns_name
+}
+
 output "app_port" {
   value = var.app_port
 }
@@ -62,11 +79,7 @@ output "ecr_repository_url" {
   value = module.ecr.repository_url
 }
 
-output "application_url" {
-  value = "http://${module.compute.bastion_public_ip}:3000"
-}
-
-
 output "github_deploy_role_arn" {
-  value = module.github_deploy.role_arn
+  value       = module.github_deploy.role_arn
+  description = "Set as the AWS_DEPLOY_ROLE_ARN GitHub Actions repository variable"
 }

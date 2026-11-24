@@ -93,7 +93,7 @@ The blocking container scan remains on the app image.
 | Removed npm, npx, and corepack from the final (`runner`) stage of the `Dockerfile`. The app only needs `node` to start (`node server.js`) and for its health check. npm is still used in the build stages, which are not part of the published image. | All 23 findings in the bundled npm: 10 high, 12 medium, 1 low | `03c7862` |
 | Required session tokens for the instance metadata service (`metadata_options { http_tokens = "required" }`) in `terraform/modules/compute/main.tf` | AWS-0028 (high) | `2757d2c` |
 | Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
-| Disabled automatic public IP assignment at the subnet level (`map_public_ip_on_launch = false`). The demo EC2 instance still explicitly requests a public IP; see Accepted risks. | AWS-0164 (high) | `2757d2c` |
+| Disabled automatic public IP assignment at the subnet level. The application VM stays private; the bastion explicitly receives an address for restricted SSH, and public web traffic reaches the app through the load balancer. | AWS-0164 (high) | Summative infrastructure update |
 | Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
 
 
@@ -115,8 +115,8 @@ We accept the advisories below for now.
 | `minimatch` GHSA-g3hv-75wg-m249 | Only used by Jest and ESLint to match file patterns that we write. The issue needs an attacker to supply a crafted pattern. | Fixed in `minimatch` 11.0.1, with the same major-version problem as `glob`. `npm audit fix --force` would downgrade `eslint-config-next` to 15, which does not match our Next.js 16 version. | 2026-12-10, or when Jest or `typescript-eslint` release an update |
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
-| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound TCP is limited to the configured HTTP and HTTPS ports (80 and 443 by default). Listed in `.trivyignore` so CI passes. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
-| Public EC2 address and HTTP app port | The coursework demo needs a reachable app endpoint. The instance explicitly receives a public IPv4 address and serves HTTP on port `app_port` (3000 by default); SSH is restricted to `ssh_cidr`. Do not use real community data on this host. | Put the app behind HTTPS on a private instance and restrict app ingress to the intended audience. | 2026-12-10, or before any real-community deployment |
+| AWS-0104 (Terraform) | Critical. The bastion and private application host need outbound web access for system updates and deployment image pulls. Their security groups permit only TCP 80 and 443 to public destinations. Trivy still flags the unrestricted destination range, so CI suppresses this finding and records the accepted risk here. | Add VPC endpoints and a controlled package mirror if the environment moves beyond the coursework demo. | 2026-12-10, or before any real-community deployment |
+| Public HTTP endpoint | The internet-facing ALB accepts HTTP on port 80 and forwards requests to the private application VM. The bastion has a public IP for SSH only, restricted to the administrator and temporary deploy runner addresses. No TLS certificate or domain is configured for the demo. | Add HTTPS with a managed certificate and domain before using real community data. | Before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
 
@@ -133,7 +133,7 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 | AWS-0104 | Security group allows outbound traffic to any IP address on all ports | Critical | Reduced to ports 80 and 443, then accepted (see Accepted risks) |
 | AWS-0028 | Instance metadata service does not require session tokens (IMDSv2) | High | Fixed |
 | AWS-0131 | Instance root disk is not encrypted | High | Fixed |
-| AWS-0164 | Public subnet gives instances a public IP address by default | High | Fixed at subnet level; the demo instance explicitly has a public IP (see Accepted risks) |
+| AWS-0164 | Public subnet assigns public IPv4 addresses automatically | High | Fixed: subnet auto-assignment is disabled; only the bastion explicitly receives a public IP, while the application VM stays private |
 | AWS-0178 | VPC Flow Logs are not enabled | Medium | Accepted risk, below the CI threshold |
 | AWS-0124 | Security group rule has no description | Low | Fixed |
 

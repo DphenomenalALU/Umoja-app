@@ -27,7 +27,3 @@ variable "bastion_security_group_id" {
 variable "application_security_group_id" {
   type = string
 }
-
-variable "database_security_group_id" {
-  type = string
-}
