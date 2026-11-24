@@ -6,6 +6,8 @@ resource "aws_vpc" "umoja" {
   }
 }
 
+# Public IP assignment is needed for the bastion subnet.
+#trivy:ignore:AWS-0164:exp:2027-02-24
 resource "aws_subnet" "public" {
   vpc_id     = aws_vpc.umoja.id
   cidr_block = var.public_subnet_cidr
@@ -42,6 +44,7 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
+
 
 resource "aws_subnet" "private_app" {
   vpc_id     = aws_vpc.umoja.id

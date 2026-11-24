@@ -13,7 +13,6 @@ module "networking" {
 }
 
 module "security" {
-
   source = "./modules/security"
 
   vpc_id             = module.networking.vpc_id
@@ -25,7 +24,6 @@ module "security" {
 }
 
 module "compute" {
-
   source = "./modules/compute"
 
   instance_type = var.instance_type
