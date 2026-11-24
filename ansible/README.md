@@ -66,9 +66,13 @@ hostname from terraform output -raw db_host. Pass app_image as the ECR URI
 with the full 40-character commit SHA. The playbook checks these values before
 it changes the host.
 
-Create and encrypt the Vault file:
+Replace the placeholder values in the local Vault file, then encrypt it before
+use. Ansible asks you to set a Vault password; keep it for local deployments
+and store it as `ANSIBLE_VAULT_PASSWORD` in the GitHub `production` environment.
 
 ```bash
+${EDITOR:-vi} ansible/group_vars/vault.yml
+ansible-vault encrypt ansible/group_vars/vault.yml
 ansible-vault edit ansible/group_vars/vault.yml
 ```
 
