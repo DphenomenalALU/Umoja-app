@@ -169,3 +169,16 @@ variable "github_repository" {
   type        = string
   default     = "DphenomenalALU/Umoja-app"
 }
+
+
+variable "github_owner_id" {
+  description = "Numeric ID of the GitHub repository owner (from the OIDC sub claim)"
+  type        = string
+  default     = "180524490"
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of the GitHub repository (from the OIDC sub claim)"
+  type        = string
+  default     = "1429534336"
+}

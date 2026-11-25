@@ -34,7 +34,7 @@ resource "aws_db_instance" "umoja" {
 
   publicly_accessible        = false
   storage_encrypted          = true
-  backup_retention_period    = 7
+  backup_retention_period    = 1
   auto_minor_version_upgrade = true
   skip_final_snapshot        = true
 }

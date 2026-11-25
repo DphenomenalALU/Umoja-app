@@ -6,6 +6,11 @@ locals {
   region             = data.aws_region.current.name
   ecr_repository_arn = "arn:aws:ecr:${local.region}:${local.account_id}:repository/${var.ecr_repository_name}"
   bastion_sg_arn     = "arn:aws:ec2:${local.region}:${local.account_id}:security-group/${var.bastion_security_group_id}"
+  oidc_repository = format(
+    "%s@%s/%s@%s",
+    split("/", var.github_repository)[0], var.github_owner_id,
+    split("/", var.github_repository)[1], var.github_repository_id,
+  )
 }
 
 # Lets AWS trust short-lived login tokens issued by GitHub Actions.
@@ -34,8 +39,8 @@ data "aws_iam_policy_document" "trust" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:${var.github_repository}:ref:refs/heads/${var.deploy_branch}",
-        "repo:${var.github_repository}:environment:${var.deploy_environment}",
+        "repo:${local.oidc_repository}:ref:refs/heads/${var.deploy_branch}",
+        "repo:${local.oidc_repository}:environment:${var.deploy_environment}",
       ]
     }
   }
