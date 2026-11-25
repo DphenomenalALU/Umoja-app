@@ -1,23 +1,26 @@
 # Ansible deployment
 
-Ansible configures the Ubuntu EC2 instance created by Terraform. It installs
-Docker, applies the host firewall and SSH settings, starts Umoja with Docker
-Compose, and checks that the app and PostgreSQL are healthy.
+This playbook configures the private Ubuntu application VM and deploys the
+Umoja image from ECR. The application uses the managed PostgreSQL database in
+RDS over TLS; no PostgreSQL container is started.
 
-The playbook uses AWS EC2 dynamic inventory by default. It selects the running
-app VM tagged `Name=umoja-application` and `Environment=dev`, then connects to
-its private IP through the bastion with SSH ProxyJump. A static inventory is
-available for a one-off host or a local syntax check.
+The public demo URL is the bastion's IP. Nginx on the bastion forwards HTTP
+requests to the private app VM on port 3000. The demo has no TLS; do not use it
+with real community data.
 
 ## Requirements
 
-- Python 3
-- AWS CLI credentials with `ec2:DescribeInstances` permission
-- The EC2 SSH key used by Terraform
-- An encrypted Ansible Vault file with the application secrets
+Run Ansible from Linux, macOS, or WSL.
 
-Install the Python and Ansible collection dependencies from the repository
-root:
+- Python 3
+- Ansible Core
+- The read-only ECR instance profile attached to the app VM by Terraform
+- OpenSSH client
+- The bastion and private VM SSH details
+- The RDS endpoint and database credentials
+- The Ansible Vault password
+
+Install the dependencies from the repository root:
 
 ```bash
 python3 -m venv .venv
@@ -26,31 +29,58 @@ python -m pip install 'ansible-core>=2.16,<3.0' -r ansible/requirements.txt
 ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
-AWS credentials come from the AWS CLI profile or environment. Set `AWS_PROFILE`
-if the credentials are not in the default profile. Set `AWS_REGION` to the same
-region used by Terraform.
-
-From the repository root, set the Ansible config and SSH key before running the
-commands below:
+## Configure local files
 
 ```bash
-export ANSIBLE_CONFIG=ansible/ansible.cfg
-export AWS_REGION=us-east-1
-export BASTION_PUBLIC_IP="$(terraform -chdir=terraform output -raw bastion_public_ip)"
-export ANSIBLE_PRIVATE_KEY_FILE="$HOME/.ssh/your-terraform-key.pem"
+cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
+cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
 ```
 
-## Configure secrets and SSH access
+Edit `ansible/inventory/hosts.ini`:
 
-Create the local Vault file and encrypt it:
+```ini
+[umoja]
+umoja-server ansible_host=APP_PRIVATE_IP ansible_user=ubuntu
+
+[umoja:vars]
+ansible_ssh_private_key_file=/home/YOUR_USER/.ssh/umoja-key.pem
+ansible_ssh_common_args=-o ProxyJump=bastion
+```
+
+Add this entry to ~/.ssh/config so SSH uses the same key for the bastion:
+
+```ssh
+Host bastion
+  HostName BASTION_PUBLIC_IP
+  User ubuntu
+  IdentityFile /home/YOUR_USER/.ssh/umoja-key.pem
+  IdentitiesOnly yes
+```
+
+Place the SSH key at the path in the inventory and restrict its permissions:
 
 ```bash
-cp ansible/group_vars/vault.yml.example ansible/group_vars/vault.yml
+mkdir -p ~/.ssh
+cp /path/to/umoja-key.pem ~/.ssh/umoja-key.pem
+chmod 600 ~/.ssh/umoja-key.pem
+```
+
+Set aws_region to the same region used by Terraform. Set database_host to the
+hostname from terraform output -raw db_host. Pass app_image as the ECR URI
+with the full 40-character commit SHA. The playbook checks these values before
+it changes the host.
+
+Replace the placeholder values in the local Vault file, then encrypt it before
+use. Ansible asks you to set a Vault password; keep it for local deployments
+and store it as `ANSIBLE_VAULT_PASSWORD` in the GitHub `production` environment.
+
+```bash
+${EDITOR:-vi} ansible/group_vars/vault.yml
 ansible-vault encrypt ansible/group_vars/vault.yml
 ansible-vault edit ansible/group_vars/vault.yml
 ```
 
-Set these values in the encrypted file:
+It must contain:
 
 ```yaml
 vault_postgres_password: "YOUR_DATABASE_PASSWORD"
@@ -58,110 +88,74 @@ vault_organizer_access_code: "YOUR_PRIVATE_CODE_AT_LEAST_12_CHARACTERS"
 vault_session_secret: "YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS"
 ```
 
-Generate the session secret with `openssl rand -hex 32`. Set
-`ssh_allowed_cidr` in `ansible/group_vars/all.yml` to the administrator's
-current public IPv4 address in `/32` notation. The playbook checks these values
-before changing the server.
-
 Keep the Vault file, local inventory, and private key out of Git. The
 repository ignores `ansible/group_vars/vault.yml`,
-`ansible/inventory/hosts.ini`, and `*.pem` files.
+`ansible/inventory/hosts.ini`, and `*.pem`.
 
-## Check dynamic inventory
-
-Terraform tags the instance so the inventory plugin can find it. After the
-instance is running, list the hosts Ansible discovers:
+## Check access
 
 ```bash
-ansible-inventory -i ansible/inventory/aws_ec2.yml --graph
+ansible-inventory -i ansible/inventory/hosts.ini --graph
+ansible all -i ansible/inventory/hosts.ini -m ansible.builtin.ping
 ```
 
-The output should include the app VM under `umoja`. The inventory connects to
-the private app IP through `BASTION_PUBLIC_IP`. The AWS credentials need
-permission to describe EC2 instances; they do not need to be saved in the
-repository.
+The connection test should return:
+
+```text
+"ping": "pong"
+```
 
 ## Validate and deploy
 
-Set Ansible's project configuration, then check the playbook syntax. This
-check uses the static example and does not contact AWS:
-
 ```bash
 ansible-playbook \
-  -i ansible/inventory/hosts.ini.example \
+  -i ansible/inventory/hosts.ini \
   ansible/site.yml \
   --syntax-check \
   --ask-vault-pass
 ```
 
-CI also runs this syntax check with the example Vault values and static
-inventory. It does not contact AWS.
-
-Deploy to the EC2 instance selected by dynamic inventory:
+Deploy the image produced by the CI workflow:
 
 ```bash
-APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
 ansible-playbook \
-  -i ansible/inventory/aws_ec2.yml \
+  -i ansible/inventory/hosts.ini \
   ansible/site.yml \
-  --ask-vault-pass \
-  --extra-vars "app_port=${APP_PORT}"
+  -e "app_image=ECR_REPOSITORY_URL:FULL_COMMIT_SHA" \
+  -e "aws_region=AWS_REGION" \
+  -e "database_host=RDS_HOST" \
+  --ask-vault-pass
 ```
 
-The playbook installs Docker and configures SSH and UFW before deploying the
-app. SSH root login and password authentication are disabled; SSH key access
-is limited to the `ubuntu` account and the configured source IP. The playbook
-waits for `/api/health` to report both the app and database ready, and fails
-with a log-check hint if they do not become healthy. If container startup or
-schema setup fails, Ansible names the failed task and points to the Compose
-status and logs for diagnosis.
-
-Compose applies the schema from `backend/migrations` when it creates a new
-PostgreSQL volume. Ansible checks for the schema and applies the same file only
-if it is missing, which covers an existing empty volume.
-
-Run the deploy command a second time. An idempotent run should finish with
-`changed=0` and `failed=0`.
-
-## Use a static inventory
-
-For a one-off host, copy the example and add the app's private IP, bastion's
-public IP, and SSH key path:
-
-```bash
-cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
-```
-
-Then replace the host, bastion, and key placeholders in
-`ansible/inventory/hosts.ini` and pass it to the same commands with
-`-i ansible/inventory/hosts.ini`.
+The playbook logs in to ECR on the VM, pulls `app_image`, applies the database
+schema when required, starts the application, and waits for `/api/health`.
+Run the same command a second time; an idempotent run should finish with
+`failed=0` and few or no changes.
 
 ## Verify the server
 
-The playbook checks the health endpoint after deployment. To inspect the
-server manually:
+```bash
+ssh -i ~/.ssh/umoja-key.pem \
+  -J ubuntu@BASTION_PUBLIC_IP \
+  ubuntu@APP_PRIVATE_IP
+```
+
+On the VM:
 
 ```bash
-APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
-ssh -J ubuntu@BASTION_PUBLIC_IP -i SSH_KEY_PATH ubuntu@APP_PRIVATE_IP <<REMOTE
 cd /opt/umoja
 docker compose ps
 docker compose logs umoja --tail=100
-curl "http://127.0.0.1:${APP_PORT}/api/health"
-sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication|kbdinteractiveauthentication|allowusers'
+curl http://127.0.0.1:3000/api/health
 sudo ufw status verbose
-REMOTE
 ```
 
-The health response should be:
+Expected response:
 
 ```json
 {"status":"healthy","database":"ready"}
 ```
 
-PostgreSQL stays inside the Compose network; the security group and UFW do not
-open port 5432 to the internet.
-
-The bastion has a public IPv4 address and serves the app over HTTP on port 80
-through Nginx. The app VM listens on `app_port` (3000 by default) in the private
-subnet. This demo has no TLS; do not use it with real community data.
+Port 5432 is not exposed by the application VM. RDS access must be allowed
+from the VM security group, and application traffic must be allowed by the
+AWS security groups and private-network path.

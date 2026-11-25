@@ -1,0 +1,191 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Run CI checks
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
+  build-and-push:
+    name: Build and push image to ECR
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE: ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+
+      - name: Log in to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
+
+      - name: Check for an existing image with this commit SHA
+        id: existing_image
+        shell: bash
+        run: |
+          repository="${IMAGE%:*}"
+          repository_name="${repository##*/}"
+          if aws ecr describe-images \
+            --repository-name "$repository_name" \
+            --image-ids "imageTag=${GITHUB_SHA}" \
+            >/dev/null 2>"$RUNNER_TEMP/ecr-describe-images.log"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -q ImageNotFoundException "$RUNNER_TEMP/ecr-describe-images.log"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/ecr-describe-images.log" >&2
+            exit 1
+          fi
+
+      - name: Pull the existing immutable image
+        if: steps.existing_image.outputs.exists == 'true'
+        run: docker pull "$IMAGE"
+
+      - name: Scan image before deployment (Trivy, fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          image-ref: ${{ env.IMAGE }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Push image to ECR
+        if: steps.existing_image.outputs.exists != 'true'
+        run: docker push "$IMAGE"
+
+  deploy:
+    name: Deploy with Ansible
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_IMAGE: ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      BASTION_SG_ID: ${{ vars.BASTION_SECURITY_GROUP_ID }}
+      DATABASE_HOST: ${{ vars.DATABASE_HOST }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install 'ansible-core>=2.16,<3.0' -r ansible/requirements.txt
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Log in to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # The bastion only accepts SSH from approved IPs, so let this runner in for the length of the deploy.
+      - name: Allow this runner to reach the bastion
+        id: runner_ip
+        run: |
+          ip="$(curl -fsS https://checkip.amazonaws.com)"
+          [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected runner IP: $ip"; exit 1; }
+          echo "cidr=${ip}/32" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$BASTION_SG_ID" \
+            --protocol tcp --port 22 --cidr "${ip}/32"
+
+      - name: Set up SSH through the bastion
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          BASTION_HOST: ${{ vars.BASTION_HOST }}
+          APP_PRIVATE_IP: ${{ vars.APP_PRIVATE_IP }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config <<EOF
+          Host bastion
+            HostName ${BASTION_HOST}
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          Host ${APP_PRIVATE_IP}
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            ProxyJump bastion
+            StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+          printf '[umoja]\numoja-server ansible_host=%s ansible_user=ubuntu\n' "$APP_PRIVATE_IP" > "$RUNNER_TEMP/hosts.ini"
+
+      - name: Prepare Ansible Vault
+        env:
+          ANSIBLE_VAULT_FILE: ${{ secrets.ANSIBLE_VAULT_FILE }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          printf '%s\n' "$ANSIBLE_VAULT_FILE" > ansible/group_vars/vault.yml
+          printf '%s' "$ANSIBLE_VAULT_PASSWORD" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 ansible/group_vars/vault.yml "$RUNNER_TEMP/vault-pass"
+
+      - name: Deploy with Ansible
+        env:
+          ANSIBLE_CONFIG: ansible/ansible.cfg
+        run: |
+          ansible-playbook \
+            -i "$RUNNER_TEMP/hosts.ini" \
+            ansible/site.yml \
+            -e "app_image=$APP_IMAGE" \
+            -e "aws_region=$AWS_REGION" \
+            -e "database_host=$DATABASE_HOST" \
+            --vault-password-file "$RUNNER_TEMP/vault-pass"
+
+      # Runs even when the deploy fails, so the bastion never stays open to the runner.
+      - name: Remove this runner from the bastion
+        if: always() && steps.runner_ip.outputs.cidr != ''
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$BASTION_SG_ID" \
+            --protocol tcp --port 22 \
+            --cidr "${{ steps.runner_ip.outputs.cidr }}"
