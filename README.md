@@ -175,7 +175,7 @@ Replace `<event-id>` and `<signup-id>` with IDs returned by the API.
 
 ## Architecture
 
-**Live application:** http://LIVE_URL_HERE (from `terraform -chdir=terraform output -raw application_url`)
+**Live application:** http://100.54.41.237 (from `terraform -chdir=terraform output -raw application_url`)
 
 ```mermaid
 flowchart LR
@@ -258,7 +258,7 @@ lib/                           Frontend event API client
 
 ## Links
 
-- Live application: http://LIVE_URL_HERE
+- Live application: http://100.54.41.237
 - [GitHub repository](https://github.com/DphenomenalALU/Umoja-app)
 - [Changelog](CHANGELOG.md)
 - [Umoja F1 project board](https://github.com/users/DphenomenalALU/projects/2)
