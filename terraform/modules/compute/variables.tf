@@ -2,6 +2,11 @@ variable "instance_type" {
   type = string
 }
 
+variable "app_port" {
+  description = "Port the private application VM serves"
+  type        = number
+}
+
 variable "environment" {
   description = "Environment name"
   type        = string

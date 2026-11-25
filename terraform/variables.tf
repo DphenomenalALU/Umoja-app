@@ -39,7 +39,7 @@ variable "public_subnet_cidr" {
 }
 
 variable "public_subnet_cidr_b" {
-  description = "IPv4 CIDR block for the second public subnet used by the load balancer"
+  description = "IPv4 CIDR block for the second public subnet"
   type        = string
 
   validation {

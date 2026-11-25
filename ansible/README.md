@@ -4,10 +4,10 @@ Ansible configures the Ubuntu EC2 instance created by Terraform. It installs
 Docker, applies the host firewall and SSH settings, starts Umoja with Docker
 Compose, and checks that the app and PostgreSQL are healthy.
 
-The playbook uses AWS EC2 dynamic inventory by default. It selects running
-instances tagged `Name=umoja-instance` and `Environment=dev`, matching the
-Terraform configuration. A static inventory is also available for a one-off
-host or a local syntax check.
+The playbook uses AWS EC2 dynamic inventory by default. It selects the running
+app VM tagged `Name=umoja-application` and `Environment=dev`, then connects to
+its private IP through the bastion with SSH ProxyJump. A static inventory is
+available for a one-off host or a local syntax check.
 
 ## Requirements
 
@@ -36,6 +36,7 @@ commands below:
 ```bash
 export ANSIBLE_CONFIG=ansible/ansible.cfg
 export AWS_REGION=us-east-1
+export BASTION_PUBLIC_IP="$(terraform -chdir=terraform output -raw bastion_public_ip)"
 export ANSIBLE_PRIVATE_KEY_FILE="$HOME/.ssh/your-terraform-key.pem"
 ```
 
@@ -75,8 +76,9 @@ instance is running, list the hosts Ansible discovers:
 ansible-inventory -i ansible/inventory/aws_ec2.yml --graph
 ```
 
-The output should include the EC2 instance under `umoja`. The AWS credentials
-need permission to describe EC2 instances; they do not need to be saved in the
+The output should include the app VM under `umoja`. The inventory connects to
+the private app IP through `BASTION_PUBLIC_IP`. The AWS credentials need
+permission to describe EC2 instances; they do not need to be saved in the
 repository.
 
 ## Validate and deploy
@@ -123,15 +125,16 @@ Run the deploy command a second time. An idempotent run should finish with
 
 ## Use a static inventory
 
-For a one-off host, copy the example and add its Terraform public IP and SSH key
-path:
+For a one-off host, copy the example and add the app's private IP, bastion's
+public IP, and SSH key path:
 
 ```bash
 cp ansible/inventory/hosts.ini.example ansible/inventory/hosts.ini
 ```
 
-Then replace the host and key placeholders in `ansible/inventory/hosts.ini` and
-pass it to the same commands with `-i ansible/inventory/hosts.ini`.
+Then replace the host, bastion, and key placeholders in
+`ansible/inventory/hosts.ini` and pass it to the same commands with
+`-i ansible/inventory/hosts.ini`.
 
 ## Verify the server
 
@@ -140,7 +143,7 @@ server manually:
 
 ```bash
 APP_PORT="$(terraform -chdir=terraform output -raw app_port)"
-ssh -p 22 -i SSH_KEY_PATH ubuntu@EC2_PUBLIC_IP <<REMOTE
+ssh -J ubuntu@BASTION_PUBLIC_IP -i SSH_KEY_PATH ubuntu@APP_PRIVATE_IP <<REMOTE
 cd /opt/umoja
 docker compose ps
 docker compose logs umoja --tail=100
@@ -159,6 +162,6 @@ The health response should be:
 PostgreSQL stays inside the Compose network; the security group and UFW do not
 open port 5432 to the internet.
 
-The demo host has a public IPv4 address and serves the app over HTTP on
-`app_port` (3000 by default). It has no TLS termination or reverse proxy; add
-HTTPS before using it with real community data.
+The bastion has a public IPv4 address and serves the app over HTTP on port 80
+through Nginx. The app VM listens on `app_port` (3000 by default) in the private
+subnet. This demo has no TLS; do not use it with real community data.

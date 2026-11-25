@@ -8,15 +8,15 @@ This configuration provisions the AWS environment for the Summative deployment.
 - An internet gateway and NAT gateway for outbound package and image downloads
 - A bastion host with SSH limited to the configured administrator address
 - A private application EC2 instance and a managed PostgreSQL database
-- A public HTTP load balancer that forwards traffic to the private application instance
+- Nginx on the public bastion, forwarding HTTP requests to the private application instance
 - A private ECR repository with scan-on-push and immutable commit-SHA tags, plus a read-only instance profile for image pulls
 - A GitHub OIDC provider and deploy role that publishes images, reads an existing image on retries, and briefly opens the bastion for deployment
 
-The app VM and database do not receive public addresses. The load balancer is the
-public web entry point; the bastion is only for SSH. The ALB listens on HTTP
-port 80 because the course demo has no configured domain or TLS certificate. Trivy
-reports this as critical AWS-0054 and the IaC check remains blocked until HTTPS is
-configured. Do not use this endpoint for real community data.
+The app VM and database do not receive public addresses. The bastion's public IP
+serves as the demo web entry point: Nginx listens on port 80 and forwards requests
+to the app VM on port 3000. SSH access to the bastion remains limited to the
+configured administrator and temporary deployment runner. This coursework demo
+uses plain HTTP and must not carry real community data.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ Run these commands from the repository root:
     terraform -chdir=terraform plan
 
 Review the plan before applying. It creates billable AWS resources, including a
-NAT gateway, managed database, load balancer, and EC2 instances.
+NAT gateway, managed database, ECR repository, and EC2 instances.
 
     terraform -chdir=terraform apply
 
