@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+  # Rollback: redeploy an image that is already in ECR, without rebuilding it.
+  workflow_dispatch:
+    inputs:
+      rollback_sha:
+        description: "Full commit SHA of an earlier image in ECR to redeploy"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +22,7 @@ concurrency:
 jobs:
   checks:
     name: Run CI checks
+    if: ${{ !inputs.rollback_sha }}
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
@@ -23,6 +31,7 @@ jobs:
   build-and-push:
     name: Build and push image to ECR
     needs: checks
+    if: ${{ !inputs.rollback_sha }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -92,6 +101,10 @@ jobs:
   deploy:
     name: Deploy with Ansible
     needs: build-and-push
+    # A push deploys only after a successful build; a rollback skips the build and reuses an existing image.
+    if: >-
+      ${{ !cancelled() && (needs.build-and-push.result == 'success' ||
+      (inputs.rollback_sha != '' && needs.build-and-push.result == 'skipped')) }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
@@ -99,7 +112,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      APP_IMAGE: ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
+      APP_IMAGE: ${{ vars.ECR_REPOSITORY_URL }}:${{ inputs.rollback_sha || github.sha }}
       AWS_REGION: ${{ vars.AWS_REGION }}
       BASTION_SG_ID: ${{ vars.BASTION_SECURITY_GROUP_ID }}
       DATABASE_HOST: ${{ vars.DATABASE_HOST }}
@@ -122,6 +135,18 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Check the rollback image exists in ECR
+        if: ${{ inputs.rollback_sha }}
+        env:
+          ROLLBACK_SHA: ${{ inputs.rollback_sha }}
+        run: |
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Run rollbacks from main"; exit 1; }
+          [[ "$ROLLBACK_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "rollback_sha must be a full 40-character commit SHA"; exit 1; }
+          repository="${APP_IMAGE%:*}"
+          aws ecr describe-images \
+            --repository-name "${repository##*/}" \
+            --image-ids "imageTag=${ROLLBACK_SHA}" >/dev/null
 
       # The bastion only accepts SSH from approved IPs, so let this runner in for the length of the deploy.
       - name: Allow this runner to reach the bastion
@@ -158,7 +183,7 @@ jobs:
             StrictHostKeyChecking accept-new
           EOF
           chmod 600 ~/.ssh/config
-          printf '[umoja]\numoja-server ansible_host=%s ansible_user=ubuntu\n' "$APP_PRIVATE_IP" > "$RUNNER_TEMP/hosts.ini"
+          printf '[public_proxy]\nbastion ansible_user=ubuntu\n\n[umoja]\numoja-server ansible_host=%s ansible_user=ubuntu\n' "$APP_PRIVATE_IP" > "$RUNNER_TEMP/hosts.ini"
 
       - name: Prepare Ansible Vault
         env:
@@ -172,14 +197,31 @@ jobs:
       - name: Deploy with Ansible
         env:
           ANSIBLE_CONFIG: ansible/ansible.cfg
+          APP_PRIVATE_IP: ${{ vars.APP_PRIVATE_IP }}
         run: |
           ansible-playbook \
             -i "$RUNNER_TEMP/hosts.ini" \
             ansible/site.yml \
             -e "app_image=$APP_IMAGE" \
+            -e "app_private_ip=$APP_PRIVATE_IP" \
             -e "aws_region=$AWS_REGION" \
             -e "database_host=$DATABASE_HOST" \
             --vault-password-file "$RUNNER_TEMP/vault-pass"
+
+      - name: Verify the public application and database health
+        env:
+          BASTION_HOST: ${{ vars.BASTION_HOST }}
+        run: |
+          for attempt in {1..10}; do
+            if response="$(curl -fsS --max-time 5 "http://$BASTION_HOST/api/health" 2>/dev/null)" \
+              && printf '%s' "$response" | python3 -c 'import json,sys; health=json.load(sys.stdin); sys.exit(0 if health.get("status") == "healthy" and health.get("database") == "ready" else 1)'; then
+              printf '%s\n' "$response"
+              exit 0
+            fi
+            sleep 3
+          done
+          printf 'Public health check failed at http://%s/api/health\n' "$BASTION_HOST" >&2
+          exit 1
 
       # Runs even when the deploy fails, so the bastion never stays open to the runner.
       - name: Remove this runner from the bastion

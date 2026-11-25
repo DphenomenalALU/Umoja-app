@@ -79,6 +79,12 @@ jobs:
             -i ansible/inventory/hosts.ini.example \
             ansible/site.yml --syntax-check
 
+      - name: Lint Ansible playbook (ansible-lint)
+        working-directory: ansible
+        run: |
+          python -m pip install 'ansible-lint==26.11.1'
+          ansible-lint site.yml
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
