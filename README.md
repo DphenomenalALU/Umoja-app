@@ -173,6 +173,43 @@ rm /tmp/umoja-cookies
 Replace `<event-id>` and `<signup-id>` with IDs returned by the API.
 
 
+## Architecture
+
+**Live application:** http://LIVE_URL_HERE (from `terraform -chdir=terraform output -raw application_url`)
+
+```mermaid
+flowchart LR
+  dev[Developer] -->|merge to main| gh[GitHub Actions]
+  subgraph GitHub
+    gh -->|CI: lint, tests, Trivy IaC + image scans| gh
+  end
+  gh -->|OIDC| iam[IAM deploy role]
+  gh -->|push umoja:SHA| ecr[(Private ECR)]
+  user[Users] -->|HTTP :80| bastion
+  subgraph AWS VPC
+    subgraph Public subnet
+      bastion[Bastion host<br/>nginx reverse proxy]
+    end
+    subgraph Private app subnet
+      app[App VM<br/>Docker Compose: Umoja :3000]
+    end
+    subgraph Private DB subnets
+      rds[(RDS PostgreSQL)]
+    end
+    nat[NAT gateway]
+  end
+  gh -->|SSH via bastion: Ansible playbook| bastion
+  bastion -->|SSH + proxy :3000| app
+  app -->|TLS verify-full :5432| rds
+  app -->|pull image| ecr
+  app --> nat
+```
+
+- **Network:** one VPC. Only the bastion is public; the app VM and RDS are in private subnets. Security groups allow HTTP to the bastion, SSH and port 3000 from the bastion to the app, and PostgreSQL only from the app.
+- **Deploy path:** a merge to `main` runs CI, pushes an immutable image to ECR, opens the bastion to the runner for the deploy, and runs Ansible, which pulls the image and restarts it with `docker compose up`.
+- **Readiness:** Ansible waits for `GET /api/health` to return `200` with `database: ready` before the deploy passes.
+- **History:** see [CHANGELOG.md](CHANGELOG.md).
+
 ## Deployment Pipeline
 
 Pushing to `main` runs `.github/workflows/cd.yml`. Pull requests never deploy.
@@ -213,7 +250,9 @@ lib/                           Frontend event API client
 
 ## Links
 
+- Live application: http://LIVE_URL_HERE
 - [GitHub repository](https://github.com/DphenomenalALU/Umoja-app)
+- [Changelog](CHANGELOG.md)
 - [Umoja F1 project board](https://github.com/users/DphenomenalALU/projects/2)
 - [Course README template](https://github.com/ALU-BSE/devops-2025s-templates/blob/main/formative-1-readme-template.md)
 - [License](LICENSE)
