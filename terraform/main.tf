@@ -32,6 +32,7 @@ module "compute" {
   instance_type = var.instance_type
   environment   = var.environment
   key_name      = var.key_name
+  app_port      = var.app_port
 
   public_subnet_id      = module.networking.public_subnet_id
   private_app_subnet_id = module.networking.private_app_subnet_id
@@ -39,6 +40,8 @@ module "compute" {
   bastion_security_group_id         = module.security.bastion_security_group_id
   application_security_group_id     = module.security.application_security_group_id
   application_instance_profile_name = module.ecr.application_instance_profile_name
+
+  depends_on = [module.networking]
 }
 
 module "database" {
@@ -54,16 +57,6 @@ module "database" {
 
 module "ecr" {
   source = "./modules/ecr"
-}
-
-module "load_balancer" {
-  source = "./modules/load-balancer"
-
-  vpc_id                  = module.networking.vpc_id
-  public_subnet_ids       = module.networking.public_subnet_ids
-  load_balancer_sg_id     = module.security.load_balancer_security_group_id
-  application_instance_id = module.compute.application_instance_id
-  app_port                = var.app_port
 }
 
 module "github_deploy" {
