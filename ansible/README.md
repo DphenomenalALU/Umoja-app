@@ -1,12 +1,13 @@
 # Ansible deployment
 
-This playbook configures the private Ubuntu application VM and deploys the
-Umoja image from ECR. The application uses the managed PostgreSQL database in
-RDS over TLS; no PostgreSQL container is started.
+This playbook configures the bastion's Nginx proxy and the private Ubuntu
+application VM, then deploys the Umoja image from ECR. The app uses the managed
+PostgreSQL database in RDS over TLS; no PostgreSQL container is started.
 
-The public demo URL is the bastion's IP. Nginx on the bastion forwards HTTP
-requests to the private app VM on port 3000. The demo has no TLS; do not use it
-with real community data.
+The public demo URL is the bastion's IP. Nginx forwards HTTP requests to the
+private app VM on port 3000. The deploy playbook configures that proxy and checks
+the public health route after updating the app. The demo has no TLS; do not use
+it with real community data.
 
 ## Requirements
 

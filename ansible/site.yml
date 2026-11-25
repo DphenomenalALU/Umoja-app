@@ -1,4 +1,11 @@
 ---
+- name: Configure the public Umoja endpoint
+  hosts: public_proxy
+  become: true
+  gather_facts: false
+  roles:
+    - bastion
+
 - name: Set up Umoja server
   hosts: umoja
   become: true
