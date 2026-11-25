@@ -9,7 +9,7 @@
     direction: outgoing
     policy: allow
 
-- name: Allow SSH from my IP
+- name: Allow SSH from the bastion or VPC
   community.general.ufw:
     rule: allow
     port: "22"
@@ -38,11 +38,12 @@
     validate: /usr/sbin/sshd -t -f %s
   notify: Restart SSH
 
-- name: Allow Umoja port
+- name: Allow Umoja traffic from the VPC
   community.general.ufw:
     rule: allow
     port: "{{ app_port }}"
     proto: tcp
+    from_ip: "{{ app_allowed_cidr }}"
 
 - name: Turn on firewall
   community.general.ufw:

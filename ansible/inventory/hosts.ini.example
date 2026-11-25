@@ -1,5 +1,6 @@
 [umoja]
-umoja-server ansible_host=REPLACE_ME_EC2_PUBLIC_IP ansible_user=ubuntu
+umoja-server ansible_host=REPLACE_ME_PRIVATE_APP_IP ansible_user=ubuntu
 
 [umoja:vars]
 ansible_ssh_private_key_file=REPLACE_ME_SSH_KEY_PATH
+ansible_ssh_common_args=-o ProxyJump=ubuntu@REPLACE_ME_BASTION_IP -i REPLACE_ME_SSH_KEY_PATH
