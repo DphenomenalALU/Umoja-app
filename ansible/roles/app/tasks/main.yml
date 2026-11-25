@@ -44,6 +44,14 @@
     mode: "0600"
   no_log: true
 
+- name: Download Amazon RDS certificate bundle
+  ansible.builtin.get_url:
+    url: "https://truststore.pki.rds.amazonaws.com/{{ aws_region }}/{{ aws_region }}-bundle.pem"
+    dest: "{{ app_dir }}/rds-ca-bundle.pem"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Create production Compose file
   ansible.builtin.template:
     src: docker-compose.production.yml.j2
@@ -87,7 +95,7 @@
       ansible.builtin.fail:
         msg: >-
           Umoja did not pass its container health check.
-          {{ database_health_errors.stdout | default('No database health errors were logged.') }}
+          {{ database_health_errors.stdout | default('No database health errors were logged.', true) }}
 
 - name: Wait for application health
   ansible.builtin.uri:
