@@ -24,5 +24,5 @@ This file records repository changes and what has been verified in AWS.
 
 - Extended Terraform for private app and database subnets, a bastion host, a private app VM, managed PostgreSQL, and private ECR.
 - Added GitHub OIDC for AWS access and a `main`-branch deployment workflow that builds and scans the image, pushes it to ECR, and runs Ansible through the bastion.
-- Applied the AWS infrastructure and exercised the deployment workflow. The latest deployment reached the app host and completed the database schema check, but the app container failed its health check. A working public deployment has not yet been verified ([deployment run](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45693099634)).
-- PR #91 adds the RDS CA bundle to the app container. It passed CI and is merged to `dev`, but is not yet on `main`; its effect on the production health check is unverified.
+- Added health-check diagnostics in PR #92. The latest deployment reached the app host and completed the database schema check, but the app failed because the container did not trust the RDS certificate (`SELF_SIGNED_CERT_IN_CHAIN`) ([deployment run](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45698650206)). The live app has not yet passed its health check.
+- PR #91 added the RDS CA bundle and passed CI on `dev`. PR #94 carries that fix to `main` and adds full certificate verification; its CI is running. The production effect has not yet been verified.
