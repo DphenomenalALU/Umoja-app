@@ -95,7 +95,7 @@
       ansible.builtin.fail:
         msg: >-
           Umoja did not pass its container health check.
-          {{ database_health_errors.stdout | default('No database health errors were logged.') }}
+          {{ database_health_errors.stdout | default('No database health errors were logged.', true) }}
 
 - name: Wait for application health
   ansible.builtin.uri:
