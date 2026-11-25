@@ -8,6 +8,9 @@ services:
       - .env
     environment:
       PORT: "{{ app_port }}"
+      NODE_EXTRA_CA_CERTS: /certs/rds-ca-bundle.pem
+    volumes:
+      - "{{ app_dir }}/rds-ca-bundle.pem:/certs/rds-ca-bundle.pem:ro"
     healthcheck:
       test:
         [

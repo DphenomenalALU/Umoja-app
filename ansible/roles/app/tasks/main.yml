@@ -44,6 +44,14 @@
     mode: "0600"
   no_log: true
 
+- name: Download Amazon RDS certificate bundle
+  ansible.builtin.get_url:
+    url: "https://truststore.pki.rds.amazonaws.com/{{ aws_region }}/{{ aws_region }}-bundle.pem"
+    dest: "{{ app_dir }}/rds-ca-bundle.pem"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Create production Compose file
   ansible.builtin.template:
     src: docker-compose.production.yml.j2
