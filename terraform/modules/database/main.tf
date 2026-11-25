@@ -32,7 +32,9 @@ resource "aws_db_instance" "umoja" {
     var.database_security_group_id
   ]
 
-  publicly_accessible = false
-
-  skip_final_snapshot = true
+  publicly_accessible        = false
+  storage_encrypted          = true
+  backup_retention_period    = 1
+  auto_minor_version_upgrade = true
+  skip_final_snapshot        = true
 }

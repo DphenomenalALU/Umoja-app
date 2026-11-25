@@ -1,96 +1,88 @@
-# Terraform infrastructure
+# Umoja AWS infrastructure
 
-This configuration provisions the AWS network and EC2 host used to run Umoja.
-It keeps the VPC, subnet, security group, and instance in separate modules.
+This configuration provisions the AWS environment for the Summative deployment.
 
-## Resources
+## What it creates
 
-- A VPC and public subnet with an internet gateway and route
-- A security group that allows the app on `app_port` and restricts SSH on port 22 to `ssh_cidr`
-- An Ubuntu 24.04 EC2 instance
-- Outputs for the instance ID, public IP, VPC, subnet, and security group
+- A VPC with two public subnets, a private application subnet, and two private database subnets
+- An internet gateway and NAT gateway for outbound package and image downloads
+- A bastion host with SSH limited to the configured administrator address
+- A private application EC2 instance and a managed PostgreSQL database
+- Nginx on the public bastion, forwarding HTTP requests to the private application instance
+- A private ECR repository with scan-on-push and immutable commit-SHA tags, plus a read-only instance profile for image pulls
+- A GitHub OIDC provider and deploy role that publishes images, reads an existing image on retries, and briefly opens the bastion for deployment
 
-PostgreSQL runs in the application’s Docker Compose network. The security group
-does not expose port 5432.
-
-The subnet does not assign public IPs by default. The demo instance uses
-`associate_public_ip_address = true` so it can download packages and serve the
-app directly without a NAT gateway. `app_cidr_blocks` defaults to
-`["0.0.0.0/0"]` so the demo can be opened in a browser; set it to a narrower
-CIDR to restrict access. SSH uses port 22 and is limited to `ssh_cidr`. This
-setup has no TLS termination or reverse proxy. The security group limits
-outbound TCP to the configured HTTP and HTTPS ports. AWS security groups do not
-filter DNS traffic to or from the VPC DNS resolver ([AWS documentation](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html)).
+The app VM and database do not receive public addresses. The bastion's public IP
+serves as the demo web entry point: Nginx listens on port 80 and forwards requests
+to the app VM on port 3000. SSH access to the bastion remains limited to the
+configured administrator and temporary deployment runner. This coursework demo
+uses plain HTTP and must not carry real community data.
 
 ## Requirements
 
 - Terraform 1.5 or later
-- AWS CLI credentials with permission to manage the listed resources
-- An EC2 key pair that exists in the selected AWS region
+- AWS CLI credentials allowed to create the resources in the selected region
+- An EC2 key pair that exists in the selected region
+- An administrator IPv4 address for SSH in /32 notation
 
-Terraform reads AWS credentials from the AWS CLI profile or environment. Do not
-put credentials or a private key in Terraform files.
+Terraform reads AWS credentials from the active AWS CLI profile or environment.
+Do not put AWS keys, private SSH keys, or real database passwords in this
+directory.
 
 ## Configure
 
 From the repository root, copy the example variables file:
 
-```bash
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-```
+    cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 
-Edit `terraform/terraform.tfvars` and set `ssh_cidr` to the administrator’s
-current public IP in `/32` notation and `key_name` to an EC2 key pair in the
-selected region. The example IP is reserved for documentation and will not
-allow a real SSH connection. The local `terraform.tfvars` file is ignored by
-Git.
+Set ssh_cidr to the administrator's current public IP and key_name to the
+existing EC2 key pair. Replace db_password with a unique value of at least 16
+characters. Do not apply with the example placeholder. Terraform state contains
+the database password, so keep terraform.tfstate private and never commit it.
 
-`app_port` and `web_egress_ports` have defaults for the coursework demo and can
-be set in the same file. SSH uses port 22 in the security group and Ansible;
-only its allowed source CIDR is configurable. The Ansible deploy command reads
-`app_port` from Terraform outputs.
+The example uses us-east-1. Change aws_region and the CIDR ranges if your AWS
+environment requires different values. Make sure the subnets do not overlap.
 
 ## Plan and apply
 
 Run these commands from the repository root:
 
-```bash
-terraform -chdir=terraform init
-terraform -chdir=terraform fmt -check -recursive
-terraform -chdir=terraform validate
-terraform -chdir=terraform plan
-```
+    terraform -chdir=terraform init
+    terraform -chdir=terraform fmt -check -recursive
+    terraform -chdir=terraform validate
+    terraform -chdir=terraform plan
 
-Review the plan before applying it. `apply` creates billable AWS resources, so
-confirm the account, region, and resource list first:
+Review the plan before applying. It creates billable AWS resources, including a
+NAT gateway, managed database, ECR repository, and EC2 instances.
 
-```bash
-terraform -chdir=terraform apply
-```
+    terraform -chdir=terraform apply
 
-The command asks for confirmation before making changes.
+Terraform asks for confirmation before creating or changing resources.
 
-## Connect the deployment
+## Outputs used by deployment
 
-After applying, get the public IP for the Ansible inventory:
+After apply, get the public application URL:
 
-```bash
-terraform -chdir=terraform output -raw public_ip
-```
+    terraform -chdir=terraform output -raw application_url
 
-Other outputs are available with:
+The deployment workflow also needs these outputs:
 
-```bash
-terraform -chdir=terraform output
-```
+    terraform -chdir=terraform output -raw github_deploy_role_arn
+    terraform -chdir=terraform output -raw ecr_repository_url
+    terraform -chdir=terraform output -raw bastion_public_ip
+    terraform -chdir=terraform output -raw bastion_security_group_id
+    terraform -chdir=terraform output -raw application_private_ip
+    terraform -chdir=terraform output -raw db_host
+
+Add them to the GitHub Actions repository variables documented in the root
+README. Keep SSH private keys and Ansible Vault contents in GitHub secrets.
 
 ## Clean up
 
-When the host is no longer needed, review the resources Terraform will remove:
+When the environment is no longer needed, inspect the plan and then remove the
+resources:
 
-```bash
-terraform -chdir=terraform destroy
-```
+    terraform -chdir=terraform destroy
 
-The deployment uses one EC2 instance. It has no load balancer, autoscaling, or
-managed PostgreSQL service.
+The database has final snapshot creation disabled for this coursework demo.
+Save anything needed before destroying the environment.

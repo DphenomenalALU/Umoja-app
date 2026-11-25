@@ -5,6 +5,8 @@ on:
     branches:
       - dev
   pull_request:
+  workflow_call:
+
 
 permissions:
   contents: read
@@ -35,6 +37,7 @@ jobs:
           version: v0.76.2
           scan-type: config
           scan-ref: terraform/
+          tf-vars: terraform/terraform.tfvars.example
           format: table
           exit-code: "0"
 
@@ -45,6 +48,7 @@ jobs:
           skip-setup-trivy: true
           scan-type: config
           scan-ref: terraform/
+          tf-vars: terraform/terraform.tfvars.example
           format: table
           severity: HIGH,CRITICAL
           exit-code: "1"

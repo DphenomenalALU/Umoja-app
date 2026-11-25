@@ -17,18 +17,17 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-#
 # Public Bastion Host
-#
 resource "aws_instance" "bastion" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-
-  key_name = var.key_name
-
-  subnet_id = var.public_subnet_id
-
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.public_subnet_id
   associate_public_ip_address = true
+  user_data = templatefile("${path.module}/bastion-user-data.sh.tftpl", {
+    application_private_ip = aws_instance.application.private_ip
+    app_port               = var.app_port
+  })
 
   metadata_options {
     http_tokens = "required"
@@ -40,9 +39,7 @@ resource "aws_instance" "bastion" {
     encrypted   = true
   }
 
-  vpc_security_group_ids = [
-    var.bastion_security_group_id
-  ]
+  vpc_security_group_ids = [var.bastion_security_group_id]
 
   tags = {
     Name        = "umoja-bastion"
@@ -50,18 +47,14 @@ resource "aws_instance" "bastion" {
   }
 }
 
-#
 # Private Application VM
-#
 resource "aws_instance" "application" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-
-  key_name = var.key_name
-
-  subnet_id = var.private_app_subnet_id
-
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.private_app_subnet_id
   associate_public_ip_address = false
+  iam_instance_profile        = var.application_instance_profile_name
 
   metadata_options {
     http_tokens = "required"
@@ -73,9 +66,7 @@ resource "aws_instance" "application" {
     encrypted   = true
   }
 
-  vpc_security_group_ids = [
-    var.application_security_group_id
-  ]
+  vpc_security_group_ids = [var.application_security_group_id]
 
   tags = {
     Name        = "umoja-application"
