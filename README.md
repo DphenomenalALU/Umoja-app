@@ -226,6 +226,14 @@ GitHub logs in to AWS with OIDC: the `umoja-github-deploy` role trusts only this
 | `production` secrets | `DEPLOY_SSH_PRIVATE_KEY`, `ANSIBLE_VAULT_FILE`, `ANSIBLE_VAULT_PASSWORD` |
 
 Set `DATABASE_HOST` to the `db_host` Terraform output (`terraform -chdir=terraform output -raw db_host`).
+### Rollback
+
+Every production image is tagged with its commit SHA and never overwritten, so a rollback redeploys an image that was already scanned and run.
+
+1. **Fast path (minutes):** in **Actions → Deploy to Production**, open the last run that passed before the bad release and choose **Re-run all jobs**. It reuses that run's commit, finds the existing `umoja:<SHA>` image in ECR, rescans it, and redeploys it with Ansible, including the health check.
+2. **Permanent fix:** on the merged pull request, choose **Revert**, then merge the revert PR. `main` then matches the running code, and the next push cannot reintroduce the bad change.
+3. **Confirm:** the deploy passes only when `GET /api/health` returns `200` with `database: ready`. Check the live URL afterwards.
+
 ## Project Structure
 
 ```text
