@@ -214,7 +214,7 @@ flowchart LR
 
 Pushing to `main` runs `.github/workflows/cd.yml`. Pull requests never deploy.
 
-1. **Checks:** reuses `ci.yml` (dependency audit, Terraform and image scans, type check, lint, Jest, Ansible syntax check). Nothing below runs if any check fails.
+1. **Checks:** reuses `ci.yml` (dependency audit, Terraform and image scans, type check, lint, Jest, Ansible syntax check and ansible-lint). Nothing below runs if any check fails.
 2. **Build and push:** builds the image, scans it with Trivy (fails on HIGH/CRITICAL), then publishes `umoja:<commit SHA>` to private ECR. Tags are immutable; a retry checks for and rescans an existing image instead of overwriting it.
 3. **Deploy:** opens the bastion to the runner's IP, runs the Ansible playbook on the private VM through the bastion, then closes the bastion again even if the deploy failed.
 
@@ -226,6 +226,14 @@ GitHub logs in to AWS with OIDC: the `umoja-github-deploy` role trusts only this
 | `production` secrets | `DEPLOY_SSH_PRIVATE_KEY`, `ANSIBLE_VAULT_FILE`, `ANSIBLE_VAULT_PASSWORD` |
 
 Set `DATABASE_HOST` to the `db_host` Terraform output (`terraform -chdir=terraform output -raw db_host`).
+### Rollback
+
+Every production image is tagged with its commit SHA and never overwritten, so a rollback redeploys an image that was already scanned and run.
+
+1. **Fast path (minutes):** in **Actions → Deploy to Production → Run workflow**, keep the branch as `main` and enter the full commit SHA of the last good release as `rollback_sha`. The workflow skips the build, checks that `umoja:<SHA>` already exists in ECR, and redeploys it with Ansible, including the health check. Find the SHA on the last passing deploy run, or with `git log --first-parent main`.
+2. **Permanent fix:** on the merged pull request, choose **Revert**, then merge the revert PR. `main` then matches the running code, and the next push cannot reintroduce the bad change.
+3. **Confirm:** the deploy passes only when `GET /api/health` returns `200` with `database: ready`. Check the live URL afterwards.
+
 ## Project Structure
 
 ```text

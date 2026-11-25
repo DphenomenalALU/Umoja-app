@@ -14,25 +14,26 @@
     mode: "0600"
 
 - name: Check database schema
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: >-
       psql "host={{ database_host }} port={{ database_port }} dbname={{ database_name }} user={{ database_user }} sslmode=require"
       -tAc "SELECT to_regclass('public.people');"
   environment:
     PGPASSWORD: "{{ vault_postgres_password }}"
-  register: schema_check
+  register: app_schema_check
   changed_when: false
   no_log: true
 
 - name: Apply database schema
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: >-
       psql "host={{ database_host }} port={{ database_port }} dbname={{ database_name }} user={{ database_user }} sslmode=require"
       -v ON_ERROR_STOP=1
       -f /tmp/umoja-001_initial_schema.sql
   environment:
     PGPASSWORD: "{{ vault_postgres_password }}"
-  when: schema_check.stdout | trim == ""
+  when: app_schema_check.stdout | trim == ""
+  changed_when: true
   no_log: true
 
 - name: Create app environment file
@@ -63,12 +64,14 @@
 - name: Authenticate Docker to ECR
   ansible.builtin.shell:
     cmd: >-
+      set -o pipefail &&
       aws ecr get-login-password --region {{ aws_region }}
       | docker login --username AWS --password-stdin {{ ecr_registry }}
+    executable: /bin/bash
   changed_when: false
 
 - name: Pull Umoja ECR image
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: "docker pull {{ app_image }}"
   changed_when: false
 
@@ -85,24 +88,26 @@
     - name: Collect safe database health errors
       ansible.builtin.shell:
         cmd: >-
+          set -o pipefail &&
           docker compose logs --no-color --tail=100 umoja
           | grep -F 'Umoja database health check failed' || true
         chdir: "{{ app_dir }}"
-      register: database_health_errors
+        executable: /bin/bash
+      register: app_database_health_errors
       changed_when: false
 
     - name: Fail with container health details
       ansible.builtin.fail:
         msg: >-
           Umoja did not pass its container health check.
-          {{ database_health_errors.stdout | default('No database health errors were logged.', true) }}
+          {{ app_database_health_errors.stdout | default('No database health errors were logged.', true) }}
 
 - name: Wait for application health
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ app_port }}/api/health"
     status_code: 200
     return_content: true
-  register: health
+  register: app_health_check
   retries: 30
   delay: 2
-  until: health.status == 200
+  until: app_health_check.status == 200
