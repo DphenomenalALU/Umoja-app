@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region"
+  description = "AWS region for Umoja"
   type        = string
 
   validation {
@@ -29,7 +29,7 @@ variable "vpc_cidr" {
 }
 
 variable "public_subnet_cidr" {
-  description = "IPv4 CIDR block for the public subnet"
+  description = "IPv4 CIDR block for the first public subnet"
   type        = string
 
   validation {
@@ -38,8 +38,48 @@ variable "public_subnet_cidr" {
   }
 }
 
+variable "public_subnet_cidr_b" {
+  description = "IPv4 CIDR block for the second public subnet"
+  type        = string
+
+  validation {
+    condition     = can(cidrnetmask(var.public_subnet_cidr_b))
+    error_message = "public_subnet_cidr_b must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "private_app_subnet_cidr" {
+  description = "IPv4 CIDR block for the private application subnet"
+  type        = string
+
+  validation {
+    condition     = can(cidrnetmask(var.private_app_subnet_cidr))
+    error_message = "private_app_subnet_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "private_db_subnet_cidr" {
+  description = "IPv4 CIDR block for the first private database subnet"
+  type        = string
+
+  validation {
+    condition     = can(cidrnetmask(var.private_db_subnet_cidr))
+    error_message = "private_db_subnet_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "private_db_subnet_cidr_b" {
+  description = "IPv4 CIDR block for the second private database subnet"
+  type        = string
+
+  validation {
+    condition     = can(cidrnetmask(var.private_db_subnet_cidr_b))
+    error_message = "private_db_subnet_cidr_b must be a valid IPv4 CIDR block."
+  }
+}
+
 variable "ssh_cidr" {
-  description = "Allowed SSH source range"
+  description = "Single administrator IPv4 address allowed to SSH to the bastion"
   type        = string
 
   validation {
@@ -49,7 +89,7 @@ variable "ssh_cidr" {
 }
 
 variable "key_name" {
-  description = "EC2 SSH key pair"
+  description = "EC2 SSH key pair in aws_region"
   type        = string
 
   validation {
@@ -59,13 +99,24 @@ variable "key_name" {
 }
 
 variable "app_port" {
-  description = "Public host port for Umoja; keep it aligned with Ansible"
+  description = "Port served by the application on the private VM"
   type        = number
   default     = 3000
 
   validation {
     condition     = var.app_port >= 1 && var.app_port <= 65535
     error_message = "app_port must be between 1 and 65535."
+  }
+}
+
+variable "db_port" {
+  description = "PostgreSQL port used by the application"
+  type        = number
+  default     = 5432
+
+  validation {
+    condition     = var.db_port >= 1 && var.db_port <= 65535
+    error_message = "db_port must be between 1 and 65535."
   }
 }
 
@@ -85,17 +136,6 @@ variable "web_egress_ports" {
   }
 }
 
-variable "app_cidr_blocks" {
-  description = "IPv4 sources allowed to reach the demo app"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-
-  validation {
-    condition     = length(var.app_cidr_blocks) > 0 && alltrue([for cidr in var.app_cidr_blocks : can(cidrnetmask(cidr))])
-    error_message = "app_cidr_blocks must contain one or more valid IPv4 CIDR blocks."
-  }
-}
-
 variable "egress_cidr_blocks" {
   description = "IPv4 destinations allowed for package and image downloads"
   type        = list(string)
@@ -107,38 +147,25 @@ variable "egress_cidr_blocks" {
   }
 }
 
-variable "associate_public_ip_address" {
-  description = "Give the demo EC2 host a public IPv4 address"
-  type        = bool
-  default     = true
-}
-
-variable "private_app_subnet_cidr" {
-  description = "CIDR block for application subnet"
-  type        = string
-}
-
-variable "private_db_subnet_cidr" {
-  description = "CIDR block for database subnet"
-  type        = string
-}
-
-variable "private_db_subnet_cidr_b" {
-  description = "Second database subnet CIDR block"
-  type        = string
-}
-
-variable "db_port" {
-  type    = number
-  default = 5432
-}
-
 variable "db_username" {
-  type      = string
-  sensitive = true
+  description = "Master username for the managed PostgreSQL database"
+  type        = string
+  sensitive   = true
 }
 
 variable "db_password" {
-  type      = string
-  sensitive = true
+  description = "Master password for the managed PostgreSQL database"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) >= 16 && !strcontains(var.db_password, "REPLACE")
+    error_message = "Set db_password to a unique password of at least 16 characters; do not use the example placeholder."
+  }
+}
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) allowed to deploy through OIDC"
+  type        = string
+  default     = "DphenomenalALU/Umoja-app"
 }

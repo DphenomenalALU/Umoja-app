@@ -2,12 +2,9 @@ variable "instance_type" {
   type = string
 }
 
-variable "subnet_id" {
-  type = string
-}
-
-variable "security_group_id" {
-  type = string
+variable "app_port" {
+  description = "Port the private application VM serves"
+  type        = number
 }
 
 variable "environment" {
@@ -20,6 +17,23 @@ variable "key_name" {
   type        = string
 }
 
-variable "associate_public_ip_address" {
-  type = bool
+variable "public_subnet_id" {
+  type = string
+}
+
+variable "private_app_subnet_id" {
+  type = string
+}
+
+variable "bastion_security_group_id" {
+  type = string
+}
+
+variable "application_security_group_id" {
+  type = string
+}
+
+variable "application_instance_profile_name" {
+  description = "Instance profile that grants the app VM read-only access to ECR"
+  type        = string
 }

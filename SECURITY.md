@@ -93,7 +93,9 @@ The blocking container scan remains on the app image.
 | Removed npm, npx, and corepack from the final (`runner`) stage of the `Dockerfile`. The app only needs `node` to start (`node server.js`) and for its health check. npm is still used in the build stages, which are not part of the published image. | All 23 findings in the bundled npm: 10 high, 12 medium, 1 low | `03c7862` |
 | Required session tokens for the instance metadata service (`metadata_options { http_tokens = "required" }`) in `terraform/modules/compute/main.tf` | AWS-0028 (high) | `2757d2c` |
 | Encrypted the instance root disk (`root_block_device { encrypted = true }`) | AWS-0131 (high) | `2757d2c` |
-| Disabled automatic public IP assignment at the subnet level (`map_public_ip_on_launch = false`). The demo EC2 instance still explicitly requests a public IP; see Accepted risks. | AWS-0164 (high) | `2757d2c` |
+| Disabled automatic public IP assignment at the subnet level. The app VM stays private; the bastion has a public IP for SSH and the HTTP demo entry point. | AWS-0164 (high) | e00f610 |
+| Set the private ECR repository to immutable tags so a commit-SHA image cannot be overwritten. | AWS-0031 (high) | `64f4872` |
+| Enabled `drop_invalid_header_fields` on the original application load balancer design. That module was later removed; the current entry point is Nginx on the bastion. | AWS-0052 (high) | `5cbe64e` |
 | Limited outbound traffic from all ports to TCP 80 and 443, and added rule descriptions | AWS-0124 (low); reduced AWS-0104 (critical) | `2757d2c` |
 
 
@@ -107,7 +109,7 @@ The scanning tools themselves can be attacked. In March 2026, attackers took ove
 
 ## Accepted risks
 
-We accept the advisories below for now. 
+We accept the advisories below for now.
 
 | Advisory | Why we accept it | Fix we considered | Review |
 | --- | --- | --- | --- |
@@ -115,14 +117,16 @@ We accept the advisories below for now.
 | `minimatch` GHSA-g3hv-75wg-m249 | Only used by Jest and ESLint to match file patterns that we write. The issue needs an attacker to supply a crafted pattern. | Fixed in `minimatch` 11.0.1, with the same major-version problem as `glob`. `npm audit fix --force` would downgrade `eslint-config-next` to 15, which does not match our Next.js 16 version. | 2026-12-10, or when Jest or `typescript-eslint` release an update |
 | `deepmerge` GHSA-gcqx-w48m-w2h4 | Only used by Jest to merge its own config. The issue needs an attacker to control the objects being merged, and Jest only reads our `jest.config.cjs`. | No fixed version exists yet; 4.3.1 is the latest release. | 2026-12-10 |
 | `zlib` CVE-2026-4738 | Medium severity, below the CI threshold. It is part of the Alpine base system, and Umoja does not call it directly. | Fixed in Alpine package `zlib` 1.4-r0. It will arrive with the next `node:22-alpine` base image update. If it has not by the review date, we will upgrade it in the `Dockerfile` with `apk upgrade`. | 2026-12-10 |
-| `AWS-0104` (Terraform) | Critical. The instance needs outbound web access to download system updates, Docker, and the app image. Outbound TCP is limited to the configured HTTP and HTTPS ports (80 and 443 by default). Excused only on those two reviewed egress rules with an inline `#trivy:ignore:AWS-0104` in `terraform/modules/security/main.tf`; any other rule with unrestricted egress still fails CI. | An egress proxy or VPC endpoints would remove the need for public outbound access, but add cost and setup beyond this demo environment. | 2026-12-10, or before any real-community deployment |
-| Public EC2 address and HTTP app port | The coursework demo needs a reachable app endpoint. The instance explicitly receives a public IPv4 address and serves HTTP on port `app_port` (3000 by default); SSH is restricted to `ssh_cidr`. Do not use real community data on this host. | Put the app behind HTTPS on a private instance and restrict app ingress to the intended audience. | 2026-12-10, or before any real-community deployment |
+| AWS-0104 (Terraform) | Critical. The bastion and private app VM need outbound TCP 80 and 443 for updates and deployment image pulls. Four security-group egress rules are reviewed and excused individually; any other unrestricted egress still fails CI. | Add VPC endpoints and a controlled package mirror before using this outside the course demo. | 2026-12-10, or before any real-community deployment |
+| Public HTTP endpoint | The bastion serves the coursework demo over HTTP on port 80 and forwards requests to the private app VM. The app VM and database have no public addresses. This is suitable for the demo only; do not send real community data over it. | Use TLS before handling real community data. | Before any real-community deployment |
 | `AWS-0178` (Terraform) | Medium, below the CI threshold. Flow logs record network traffic for investigations; they do not block attacks. | Add an `aws_flow_log` for rejected traffic, sent to CloudWatch Logs. This needs a log group and an IAM role, and adds cost. | 2026-12-10, or before any real-community deployment |
 
 
 ## Infrastructure-as-code scan
 
 Trivy checks the Terraform configuration on each pull request. CI reports all findings and fails on high or critical findings.
+
+The first Summative scans on [PR #84](https://github.com/DphenomenalALU/Umoja-app/actions/runs/45502486709) found AWS-0031 (mutable ECR tags) and AWS-0054 (an HTTP load-balancer listener). AWS-0031 was fixed in `64f4872`. The previous head still had AWS-0054; the current change removes the load balancer module and serves the demo through Nginx on the Bastion. The Trivy check for this updated head must pass before we mark the scan finding resolved. The public HTTP endpoint remains a documented demo limitation; no scan finding is suppressed for it.
 
 **First result: failed.** 6 findings: 1 critical, 3 high, 1 medium, 1 low.
 
@@ -133,7 +137,7 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 | AWS-0104 | Security group allows outbound traffic to any IP address on all ports | Critical | Reduced to ports 80 and 443, then accepted (see Accepted risks) |
 | AWS-0028 | Instance metadata service does not require session tokens (IMDSv2) | High | Fixed |
 | AWS-0131 | Instance root disk is not encrypted | High | Fixed |
-| AWS-0164 | Public subnet gives instances a public IP address by default | High | Fixed at subnet level; the demo instance explicitly has a public IP (see Accepted risks) |
+| AWS-0164 | Public subnet assigns public IPv4 addresses automatically | High | Fixed: subnet auto-assignment is disabled; only the bastion explicitly receives a public IP, and the app VM stays private |
 | AWS-0178 | VPC Flow Logs are not enabled | Medium | Accepted risk, below the CI threshold |
 | AWS-0124 | Security group rule has no description | Low | Fixed |
 
@@ -141,20 +145,20 @@ Trivy checks the Terraform configuration on each pull request. CI reports all fi
 
 > CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871049391
 
-**Final result: passed.** 1 finding: 0 critical, 0 high, 1 medium (AWS-0178). At that point AWS-0104 was listed in `.trivyignore`; it has since been narrowed to the two reviewed rules (see [Exception review](#exception-review-summative)).
+**Final result: passed.** 1 finding: 0 critical, 0 high, 1 medium (AWS-0178). The repository-wide AWS-0104 ignore was later removed; the Summative permits only four reviewed web-egress rules (see [Exception review](#exception-review)).
 
 > CI run: https://github.com/DphenomenalALU/Umoja-app/actions/runs/42871393918
  
 
-The EC2 instance requires outbound web access to download system updates and application dependencies. Its security group allows outbound TCP on the configured HTTP and HTTPS ports only. Trivy still flags the public destination range as AWS-0104, so that finding is excused on those two egress rules only, with `#trivy:ignore:AWS-0104` directly above each rule, and recorded here for review. Replace it with a narrower egress path if the deployment later adds a proxy or managed endpoints. AWS security groups cannot block DNS requests to the VPC resolver, so a separate port 53 rule is not required for this configuration.
+The bastion and private app host need outbound web access for operating system updates and ECR pulls. Each host permits only TCP 80 and 443 to public destinations. Trivy flags the destination range, so those four rules carry individual, dated AWS-0104 ignores. Any other unrestricted egress remains a CI failure. Replace this path with VPC endpoints and a controlled package mirror before using the environment with real community data. AWS security groups do not filter DNS traffic to the VPC resolver, so a separate port 53 rule is not required.
 
-### Exception review 
+### Exception review
 
 Before the Summative infrastructure was added, we reviewed how scan findings are excused so a critical finding cannot be silently allowed through.
 
 - **Removed the repository-wide ignore.** `.trivyignore` used to list `AWS-0104` (critical), which hid that check for every Terraform file. It now contains no checks, only a note explaining the policy below.
-- **Excused only the reviewed rules.** The two egress rules that need outbound web access (TCP 80 and 443) are marked with `#trivy:ignore:AWS-0104` in `terraform/modules/security/main.tf`. Any other security group rule with unrestricted egress still fails the workflow.
-- **Evidence.** When only one of the two rules was marked, CI failed on the unmarked rule with 1 critical finding: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45187066646. After both reviewed rules were marked, it passed: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45188600741.
+- **Excused only the reviewed rules.** Four egress rules permit web downloads: HTTP and HTTPS from the bastion, and HTTP and HTTPS from the private app VM. Each has a dated AWS-0104 ignore directly above it in terraform/modules/security/main.tf. Other unrestricted egress still fails CI.
+- **Evidence.** In the earlier single-security-group setup, CI failed when only one of two web rules was marked, then passed after both reviewed rules were marked: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45187066646 and https://github.com/DphenomenalALU/Umoja-app/actions/runs/45188600741. The Summative adds the same two reviewed egress ports for both the bastion and private app VM.
 
 - **Critical finding demo.** Setting `ssh_cidr` to `0.0.0.0/0` (SSH open to the internet) in the example values made the IaC scan fail with a critical finding: https://github.com/DphenomenalALU/Umoja-app/actions/runs/45206766857/job/137804487679. The demo pull request was closed without merging.
 

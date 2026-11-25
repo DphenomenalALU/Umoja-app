@@ -17,30 +17,59 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "aws_instance" "umoja" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-
-  key_name = var.key_name
-
-  subnet_id = var.subnet_id
-
-  associate_public_ip_address = var.associate_public_ip_address
+# Public Bastion Host
+resource "aws_instance" "bastion" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.public_subnet_id
+  associate_public_ip_address = true
+  user_data = templatefile("${path.module}/bastion-user-data.sh.tftpl", {
+    application_private_ip = aws_instance.application.private_ip
+    app_port               = var.app_port
+  })
 
   metadata_options {
     http_tokens = "required"
   }
 
   root_block_device {
-    encrypted = true
+    volume_size = 20
+    volume_type = "gp3"
+    encrypted   = true
   }
 
-  vpc_security_group_ids = [
-    var.security_group_id
-  ]
+  vpc_security_group_ids = [var.bastion_security_group_id]
 
   tags = {
-    Name        = "umoja-instance"
+    Name        = "umoja-bastion"
+    Environment = var.environment
+  }
+}
+
+# Private Application VM
+resource "aws_instance" "application" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.private_app_subnet_id
+  associate_public_ip_address = false
+  iam_instance_profile        = var.application_instance_profile_name
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  vpc_security_group_ids = [var.application_security_group_id]
+
+  tags = {
+    Name        = "umoja-application"
     Environment = var.environment
   }
 }
