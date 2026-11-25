@@ -1,6 +1,6 @@
 resource "aws_security_group" "bastion" {
   name        = "umoja-bastion-sg"
-  description = "SSH access to bastion host"
+  description = "Public web entry point and SSH jump host"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -11,6 +11,14 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = [var.ssh_cidr]
   }
 
+  ingress {
+    description = "Public HTTP traffic forwarded to the private app VM"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
     description = "HTTP for operating system updates"
@@ -19,9 +27,10 @@ resource "aws_security_group" "bastion" {
     protocol    = "tcp"
     cidr_blocks = var.egress_cidr_blocks
   }
+
   #trivy:ignore:AWS-0104:exp:2026-12-10
   egress {
-    description = "HTTPS for package and image downloads"
+    description = "HTTPS for package downloads"
     from_port   = var.web_egress_ports["https"]
     to_port     = var.web_egress_ports["https"]
     protocol    = "tcp"
@@ -36,26 +45,8 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = [var.private_app_subnet_cidr]
   }
 
-  tags = {
-    Name = "umoja-bastion-sg"
-  }
-}
-
-resource "aws_security_group" "load_balancer" {
-  name        = "umoja-load-balancer-sg"
-  description = "Public HTTP entry point for Umoja"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "Public HTTP traffic"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
-    description = "Forward HTTP health and application requests to the private application subnet"
+    description = "Forward web traffic to the private application host"
     from_port   = var.app_port
     to_port     = var.app_port
     protocol    = "tcp"
@@ -63,7 +54,7 @@ resource "aws_security_group" "load_balancer" {
   }
 
   tags = {
-    Name = "umoja-load-balancer-sg"
+    Name = "umoja-bastion-sg"
   }
 }
 
@@ -81,11 +72,11 @@ resource "aws_security_group" "application" {
   }
 
   ingress {
-    description     = "Application traffic from the public load balancer"
+    description     = "Application traffic from the bastion reverse proxy"
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
-    security_groups = [aws_security_group.load_balancer.id]
+    security_groups = [aws_security_group.bastion.id]
   }
 
   #trivy:ignore:AWS-0104:exp:2026-12-10
