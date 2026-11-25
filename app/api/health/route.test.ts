@@ -1,6 +1,10 @@
 import { GET } from "./route";
 import { pool } from "@/backend/src/db/pool";
 
+jest.mock("next/server", () => ({
+  connection: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock("@/backend/src/db/pool", () => ({
   pool: {
     query: jest.fn(),

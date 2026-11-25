@@ -3,8 +3,11 @@ import { createEvent, listEvents } from "@/backend/src/events/event-service";
 import { isApiError } from "@/backend/src/shared/errors";
 import { hasOrganizerSession } from "@/lib/organizer-session";
 import { parseNewEvent } from "@/backend/src/shared/event-input";
+import { connection } from "next/server";
 
 export async function GET() {
+  await connection();
+
   try {
     return NextResponse.json({ events: await listEvents() });
   } catch {
