@@ -3,6 +3,15 @@ variable "github_repository" {
   type        = string
 }
 
+variable "github_owner_id" {
+  description = "Numeric ID of the repository owner, as it appears in GitHub's OIDC sub claim"
+  type        = string
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of the repository, as it appears in GitHub's OIDC sub claim"
+  type        = string
+}
 variable "deploy_branch" {
   description = "Branch whose workflow runs may use the deploy role"
   type        = string

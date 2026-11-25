@@ -63,6 +63,8 @@ module "github_deploy" {
   source = "./modules/github-deploy"
 
   github_repository         = var.github_repository
+  github_owner_id           = var.github_owner_id
+  github_repository_id      = var.github_repository_id
   ecr_repository_name       = "umoja"
   bastion_security_group_id = module.security.bastion_security_group_id
 }
