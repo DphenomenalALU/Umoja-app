@@ -41,3 +41,28 @@ output "application_url" {
   description = "Public HTTP URL served by the bastion reverse proxy"
   value       = format("http://%s", module.compute.bastion_public_ip)
 }
+
+output "github_deploy_role_arn" {
+  description = "IAM role ARN for GitHub Actions OIDC deployments"
+  value       = module.github_deploy.role_arn
+}
+
+output "ecr_repository_url" {
+  description = "Private ECR repository URI for application images"
+  value       = module.ecr.repository_url
+}
+
+output "application_instance_profile_name" {
+  description = "Instance profile that lets the private app VM pull from ECR"
+  value       = module.ecr.application_instance_profile_name
+}
+
+output "db_host" {
+  description = "Managed PostgreSQL hostname without the port"
+  value       = module.database.db_host
+}
+
+output "db_endpoint" {
+  description = "Managed PostgreSQL endpoint including the port"
+  value       = module.database.db_endpoint
+}
