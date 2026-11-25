@@ -37,3 +37,11 @@
     name: nginx
     state: started
     enabled: true
+
+# Nginx starts with its default site when it is installed, and the boot script does not reload it.
+# Reload on every run so the running process always serves the Umoja proxy, even when no file changed.
+- name: Load the Umoja proxy into the running Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  changed_when: false
