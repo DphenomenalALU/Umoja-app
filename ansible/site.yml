@@ -9,8 +9,14 @@
     - name: Check deployment settings before changing the host
       ansible.builtin.assert:
         that:
+          - aws_region is string
+          - aws_region | trim | length > 0
+          - database_host is string
+          - database_host | trim | length > 0
+          - app_image is string
+          - app_image is match('^[^/]+/[^:]+:[0-9a-fA-F]{40}$')
           - ssh_allowed_cidr is string
-          - ssh_allowed_cidr.endswith('/32')
+          - "'/' in ssh_allowed_cidr"
           - "'REPLACE_ME' not in ssh_allowed_cidr"
           - vault_postgres_password is string
           - vault_postgres_password | length > 0
@@ -20,8 +26,8 @@
           - vault_session_secret | length >= 32
           - "'REPLACE_ME' not in vault_session_secret"
         fail_msg: >-
-          Set the SSH CIDR and real database, organizer, and session secrets
-          in the local Ansible variable files before deploying.
+          Pass aws_region, database_host, and a full 40-character ECR image tag.
+          Set the SSH CIDR and real secrets in the local files and Ansible Vault.
   roles:
     - base
     - docker
@@ -51,5 +57,5 @@
           - (app_health.json | default({})).get('status', '') == 'healthy'
           - (app_health.json | default({})).get('database', '') == 'ready'
         fail_msg: >-
-          Umoja did not become healthy. Check the app and PostgreSQL container
-          logs on the server before retrying the playbook.
+          Umoja did not become healthy. Check the application logs and RDS
+          connectivity on the server before retrying the playbook.
