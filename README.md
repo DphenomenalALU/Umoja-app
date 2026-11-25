@@ -230,7 +230,7 @@ Set `DATABASE_HOST` to the `db_host` Terraform output (`terraform -chdir=terrafo
 
 Every production image is tagged with its commit SHA and never overwritten, so a rollback redeploys an image that was already scanned and run.
 
-1. **Fast path (minutes):** in **Actions → Deploy to Production**, open the last run that passed before the bad release and choose **Re-run all jobs**. It reuses that run's commit, finds the existing `umoja:<SHA>` image in ECR, rescans it, and redeploys it with Ansible, including the health check.
+1. **Fast path (minutes):** in **Actions → Deploy to Production → Run workflow**, keep the branch as `main` and enter the full commit SHA of the last good release as `rollback_sha`. The workflow skips the build, checks that `umoja:<SHA>` already exists in ECR, and redeploys it with Ansible, including the health check. Find the SHA on the last passing deploy run, or with `git log --first-parent main`.
 2. **Permanent fix:** on the merged pull request, choose **Revert**, then merge the revert PR. `main` then matches the running code, and the next push cannot reintroduce the bad change.
 3. **Confirm:** the deploy passes only when `GET /api/health` returns `200` with `database: ready`. Check the live URL afterwards.
 
